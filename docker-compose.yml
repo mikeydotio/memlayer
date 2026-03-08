@@ -1,0 +1,54 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: memlayer-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: memlayer
+      POSTGRES_USER: memlayer
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d/migrations:ro
+      - ./db/init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memlayer -d memlayer"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    shm_size: 256mb
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: memlayer-server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://memlayer:${POSTGRES_PASSWORD}@db:5432/memlayer
+      MEMLAYER_AUTH_TOKEN: ${MEMLAYER_AUTH_TOKEN}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    ports:
+      - "0.0.0.0:8420:8420"
+
+  ollama:
+    image: ollama/ollama
+    container_name: memlayer-ollama
+    profiles: ["local-embeddings"]
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+
+volumes:
+  pgdata:
+  ollama-data:
