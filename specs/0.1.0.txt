@@ -1,0 +1,62 @@
+﻿📄 Product Requirements Document (PRD): Claude Code Memory Layer
+1. Overview
+The Claude Code Memory Layer is a distributed, client-server architecture designed to provide infinite, searchable, long-term memory for Claude Code CLI sessions. It continuously synchronizes local conversation logs to a centralized PostgreSQL database, generates semantic embeddings, and exposes a hybrid-search interface back to Claude via the Model Context Protocol (MCP).
+2. Architecture & Components
+2.1 Thin Client Daemon (claude-mem-daemon)
+A lightweight, cross-platform background process running on multiple client machines (laptops, desktops).
+* Core Function: Tails and parses Claude Code logs located at ~/.claude/projects/*/*.jsonl.
+* Processing: Extracts the raw JSON objects, session IDs, timestamps, and workspace paths.
+* Transport: Streams parsed entries to the central Memory Server over the Tailnet.
+* Authentication: Authenticates with the server using a pre-shared SSH key (either via an SSH tunnel for HTTP traffic or a direct secure RPC connection).
+* Resilience: Maintains a local cursor/pointer of the last read line. If the Tailnet drops, it queues updates locally until the connection is restored.
+2.2 Thick Server (claude-mem-server)
+A centralized processing API running in a Docker container on a designated Tailnet host.
+* Ingestion Endpoint: Receives raw JSON payloads from the client daemons.
+* Embedding Generation: Calls an embedding model API (e.g., OpenAI text-embedding-3-small or a local Ollama instance) to convert the message text into vector embeddings.
+* Storage Routing: Writes the original JSON metadata, the raw text, the text search vector (tsvector), and the generated embedding (vector) to PostgreSQL.
+* Search API: Exposes an authenticated REST/gRPC endpoint for querying the database.
+2.3 Database (PostgreSQL 16+ with pgvector)
+The persistent storage engine.
+* Extensions Required: pgvector for semantic search, pg_trgm (optional) for fuzzy text matching.
+* Indexes:
+   * HNSW index on the vector column for fast semantic retrieval.
+   * GIN index on the tsvector column for fast Full-Text Search.
+   * B-Tree indexes on session_id, project_path, and timestamp for fast filtering.
+2.4 AI Integration (MCP Server & Claude Skill)
+The bridge between the database and the Claude CLI.
+* MCP Server (claude-mem-mcp): Connects to the Thick Server's Search API. It exposes distinct tools to the LLM:
+   * search_memory(query, session_id?, project_path?): Executes the hybrid search.
+   * get_session_summary(session_id): Retrieves a chronological summary of a specific past session.
+* Claude Skill (.claude/skills/memory.md): A custom skillpack that teaches Claude when and how to use the MCP tools. It detects phrases like "Do you remember when we..." or "Look up how we fixed this in the other project," formats the query, calls the MCP server, and synthesizes the returned context into the current conversation.
+3. Data Schema & Hybrid Search Logic
+3.1 Database Schema (Conceptual)
+CREATE TABLE claude_sessions (
+   session_id VARCHAR PRIMARY KEY,
+   project_path VARCHAR,
+   client_machine_id VARCHAR,
+   created_at TIMESTAMP
+);
+
+CREATE TABLE memory_entries (
+   id BIGSERIAL PRIMARY KEY,
+   session_id VARCHAR REFERENCES claude_sessions(session_id),
+   message_type VARCHAR, -- 'user', 'assistant', 'tool_call', etc.
+   raw_content TEXT,
+   payload_hash VARCHAR UNIQUE, -- For idempotency
+   created_at TIMESTAMP,
+   fts tsvector GENERATED ALWAYS AS (to_tsvector('english', raw_content)) STORED,
+   embedding vector(1536) -- Adjust dimension based on embedding model
+);
+
+3.2 Hybrid Search with Reciprocal Rank Fusion (RRF)
+The search must use RRF to combine the exactness of Full-Text Search (BM25/ts_rank) with the conceptual matching of Vector Search (Cosine distance).
+* Flow: 1. Retrieve the top 50 matches using @@ websearch_to_tsquery. 2. Retrieve the top 50 matches using <=> (cosine distance) against the query embedding. 3. Merge the two lists in a wrapper query, calculating the RRF score: (1.0 / (60 + fts_rank)) + (1.0 / (60 + vector_rank)). 4. Return the top N results sorted by the combined RRF score.
+4. Security & Deployment
+* Network: All server components (API, DB, MCP) run within a Docker Compose stack bound only to the Tailscale network interface (e.g., 100.x.y.z).
+* Authentication: The MVP relies on a pre-shared SSH key. The Client Daemon uses this key to establish a secure tunnel to the Docker host, allowing it to forward log payloads securely without exposing public HTTP endpoints.
+* Data Retention: The database serves as a permanent archive, overriding Claude Code's default 30-day log deletion policy.
+5. Development Phases
+1. Phase 1: Infrastructure & DB. Set up docker-compose.yml with Postgres/pgvector. Write the SQL schema and RRF search functions.
+2. Phase 2: Thick Server & Embedding. Build the API server to receive payloads, generate embeddings, and write to the DB.
+3. Phase 3: Client Daemon. Build the log-tailing daemon with SSH tunnel capabilities and exponential backoff for offline queuing.
+4. Phase 4: AI Bridge. Develop the MCP server to interface with the Thick Server, and write the Claude Skill markdown file to trigger the workflow.
