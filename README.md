@@ -35,13 +35,70 @@ Claude searches 6,000+ indexed conversation entries and returns the exact sessio
 
 **MCP Server** exposes `search_memory` and `get_session_summary` tools to Claude Code via the Model Context Protocol. Works in FTS-only mode without an embedding API key.
 
+## Quick Start
+
+Two commands to get running:
+
+```bash
+# On the server machine (has Docker)
+git clone https://github.com/mikeydotio/memlayer.git
+cd memlayer
+./setup_server.sh
+```
+
+The server script generates credentials, starts Docker containers, and prints an auth token.
+
+```bash
+# On each client machine (or same machine)
+./setup_client.sh
+```
+
+The client script installs the daemon, sets up a background service, registers MCP tools with Claude Code, and adds memory instructions to your CLAUDE.md.
+
+**One-liner install** (client only, downloads everything):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mikeydotio/memlayer/main/install.sh | bash
+```
+
 ## Prerequisites
 
-- Docker and Docker Compose
-- Rust 1.70+ (for the daemon)
-- Node.js 18+ (for the MCP server)
+- **Server:** Docker and Docker Compose v2
+- **Client:** Node.js 18+, npm
 
-## Installation
+Optional: Rust (for building daemon from source), Claude CLI (for MCP registration).
+
+## Upgrading
+
+```bash
+# Server
+cd memlayer && git pull && ./setup_server.sh
+
+# Client (if installed via install.sh)
+curl -fsSL https://raw.githubusercontent.com/mikeydotio/memlayer/main/install.sh | bash
+
+# Client (if cloned manually)
+cd memlayer && git pull && ./setup_client.sh
+```
+
+Re-running setup scripts is safe — they detect existing installations and offer to update.
+
+## Uninstalling
+
+```bash
+# From repo clone
+./uninstall.sh
+
+# From install.sh installation
+~/.memlayer/uninstall.sh
+```
+
+The uninstaller asks before removing each component: service, binary, MCP registration, CLAUDE.md section, local data, and server/database.
+
+## Manual Installation
+
+<details>
+<summary>Step-by-step manual setup (without scripts)</summary>
 
 ### 1. Clone and configure
 
@@ -169,6 +226,8 @@ Do you remember what we worked on last week?
 ```
 
 Claude should call `search_memory` and return relevant results from your conversation history.
+
+</details>
 
 ## Architecture
 

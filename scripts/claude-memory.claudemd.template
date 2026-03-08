@@ -1,0 +1,9 @@
+## Memory (Cross-Session Recall)
+
+The `claude-memory` MCP server provides tools to search past conversations:
+- `search_memory` — hybrid search across all past Claude Code conversations
+- `get_session_summary` — full chronological session history
+
+Use `search_memory` when the user references past work, asks about prior
+decisions, or encounters a problem that may have been solved before.
+Use keyword-rich queries for best results.

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.memlayer.daemon</string>
+    <key>ProgramArguments</key>
+    <array><string>{{DAEMON_PATH}}</string></array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>MEMLAYER_SERVER_URL</key><string>{{SERVER_URL}}</string>
+        <key>MEMLAYER_AUTH_TOKEN</key><string>{{AUTH_TOKEN}}</string>
+        <key>RUST_LOG</key><string>info</string>
+    </dict>
+    <key>RunAtLoad</key><true/>
+    <key>KeepAlive</key><true/>
+    <key>StandardOutPath</key>
+    <string>{{HOME}}/Library/Logs/memlayer-daemon.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{HOME}}/Library/Logs/memlayer-daemon.log</string>
+</dict>
+</plist>

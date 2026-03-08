@@ -1,0 +1,16 @@
+[Unit]
+Description=Memlayer - Claude Code Memory Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart={{DAEMON_PATH}}
+Restart=always
+RestartSec=10
+Environment=MEMLAYER_SERVER_URL={{SERVER_URL}}
+Environment=MEMLAYER_AUTH_TOKEN={{AUTH_TOKEN}}
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=default.target

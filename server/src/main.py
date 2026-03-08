@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
     logger.info("Memlayer server stopped")
 
 
-app = FastAPI(title="claude-mem-server", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="claude-mem-server", version="0.2.0", lifespan=lifespan)
 
 
 # Auth middleware
