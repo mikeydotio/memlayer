@@ -68,11 +68,11 @@ async def search(req: SearchRequest):
 
     if query_embedding is not None:
         # Full hybrid search
-        embedding_bytes = np.array(query_embedding, dtype=np.float32).tobytes()
+        embedding_vec = np.array(query_embedding, dtype=np.float32)
         rows = await pool.fetch(
             "SELECT * FROM hybrid_search($1, $2, $3, $4, $5, 1.0, 1.0, $6, $7, $8)",
             req.query,
-            embedding_bytes,
+            embedding_vec,
             req.session_id,
             req.project_path,
             req.limit,

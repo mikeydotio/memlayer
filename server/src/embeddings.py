@@ -139,7 +139,7 @@ async def embedding_worker():
             for entry_id, emb in zip(ids, embeddings):
                 await pool.execute(
                     "UPDATE memory_entries SET embedding = $1, embedding_provider = $2, embedding_model = $3 WHERE id = $4",
-                    np.array(emb, dtype=np.float32).tobytes(),
+                    np.array(emb, dtype=np.float32),
                     settings.embedding_provider,
                     settings.embedding_model,
                     entry_id,
