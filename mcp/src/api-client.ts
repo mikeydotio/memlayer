@@ -1,3 +1,13 @@
+export interface LargeResponseRef {
+  schema_version: number;
+  file_id: string;
+  file_url: string;
+  size_bytes: number;
+  summary: string;
+  index: string;
+  content_type: string;
+}
+
 export interface SearchResult {
   id: number;
   session_id: string;
@@ -17,6 +27,7 @@ export interface SearchResponse {
   total: number;
   query_embedding_ms: number;
   search_ms: number;
+  large_response?: LargeResponseRef | null;
 }
 
 export interface SessionMessage {
@@ -35,6 +46,7 @@ export interface SessionSummary {
   created_at: string;
   message_count: number;
   messages: SessionMessage[];
+  large_response?: LargeResponseRef | null;
 }
 
 export class MemlayerClient {
@@ -82,5 +94,17 @@ export class MemlayerClient {
       );
     }
     return (await resp.json()) as SessionSummary;
+  }
+
+  async downloadFile(fileId: string): Promise<string> {
+    const resp = await fetch(`${this.baseUrl}/files/${fileId}`, {
+      headers: this.headers(),
+    });
+    if (!resp.ok) {
+      throw new Error(
+        `File download failed: ${resp.status} ${await resp.text()}`,
+      );
+    }
+    return await resp.text();
   }
 }

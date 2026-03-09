@@ -41,13 +41,23 @@ cd daemon && cargo test
 | `OPENAI_API_KEY` | server | For embedding generation |
 | `EMBEDDING_PROVIDER` | server | `openai` or `ollama` |
 | `POSTGRES_PASSWORD` | docker-compose | Database password |
+| `INDEX_MODE` | server | Indexing mode: `off`, `hybrid`, `llm-only` |
+| `INDEX_LLM_PROVIDER` | server | LLM for indexing: `openai`, `anthropic`, `ollama` |
+| `ANTHROPIC_API_KEY` | server | For Anthropic-based indexing |
+| `FILE_STORAGE_SOFT_LIMIT` | server | Soft limit for response files (bytes, 0=unlimited) |
+| `FILE_STORAGE_HARD_LIMIT` | server | Hard limit for response files (bytes, 0=unlimited) |
 
 ## Key Files
 
 - `db/migrations/` — SQL schema, indexes, RRF hybrid search function
 - `server/src/routes/ingest.py` — Ingestion endpoint
-- `server/src/routes/search.py` — Hybrid search + session summary endpoints
+- `server/src/routes/search.py` — Hybrid search + session summary endpoints + large response detection
+- `server/src/routes/files.py` — File download endpoint for large responses
 - `server/src/embeddings.py` — OpenAI/Ollama embedding providers
+- `server/src/file_storage.py` — Response file storage + LRU eviction
+- `server/src/eviction.py` — Background eviction worker
+- `server/src/indexing/` — Content detection, heuristic + LLM indexing
 - `daemon/src/parser.rs` — JSONL parsing and content extraction
 - `daemon/src/watcher.rs` — File watcher with cursor tracking
-- `mcp/src/index.ts` — MCP tool definitions
+- `mcp/src/index.ts` — MCP tool definitions (`search_memory`, `get_session_summary`, `read_memory_file`)
+- `mcp/src/file-cache.ts` — Local file cache for large response files

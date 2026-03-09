@@ -1,11 +1,14 @@
+import json
 import logging
 import time
 
 import numpy as np
 from fastapi import APIRouter, HTTPException
 
+from ..config import settings
 from ..db import get_pool
 from ..models import (
+    LargeResponseRef,
     SearchRequest,
     SearchResponse,
     SearchResult,
@@ -13,9 +16,43 @@ from ..models import (
     SessionMessage,
 )
 from ..embeddings import embed_query
+from ..file_storage import store_response_file
+from ..indexing import generate_index
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+async def _maybe_offload(
+    response_json: str,
+    threshold: int,
+    source_endpoint: str,
+    source_params: dict | None = None,
+) -> LargeResponseRef | None:
+    """If response exceeds threshold, store to file and return a LargeResponseRef."""
+    if len(response_json) <= threshold:
+        return None
+
+    summary, structural_index, content_type = await generate_index(response_json)
+
+    record = await store_response_file(
+        content=response_json,
+        source_endpoint=source_endpoint,
+        source_params=source_params,
+        summary=summary,
+        structural_index=structural_index,
+        content_type=content_type,
+    )
+
+    file_id = str(record["id"])
+    return LargeResponseRef(
+        file_id=file_id,
+        file_url=f"/api/files/{file_id}",
+        size_bytes=record["size_bytes"],
+        summary=summary,
+        index=structural_index,
+        content_type=content_type,
+    )
 
 
 @router.post("/search", response_model=SearchResponse)
@@ -85,12 +122,25 @@ async def search(req: SearchRequest):
         for r in rows
     ]
 
-    return SearchResponse(
+    response = SearchResponse(
         results=results,
         total=len(results),
         query_embedding_ms=embedding_ms,
         search_ms=search_ms,
     )
+
+    # Check for large response offloading
+    response_json = response.model_dump_json()
+    large_ref = await _maybe_offload(
+        response_json,
+        settings.large_response_threshold_search,
+        source_endpoint="/api/search",
+        source_params={"query": req.query, "session_id": req.session_id, "project_path": req.project_path},
+    )
+    if large_ref:
+        response.large_response = large_ref
+
+    return response
 
 
 @router.get("/sessions/{session_id}/summary", response_model=SessionSummary)
@@ -122,7 +172,7 @@ async def session_summary(session_id: str, limit: int = 200):
         for r in rows
     ]
 
-    return SessionSummary(
+    response = SessionSummary(
         session_id=session["session_id"],
         project_path=session["project_path"],
         slug=session["slug"],
@@ -130,3 +180,16 @@ async def session_summary(session_id: str, limit: int = 200):
         message_count=len(messages),
         messages=messages,
     )
+
+    # Check for large response offloading
+    response_json = response.model_dump_json()
+    large_ref = await _maybe_offload(
+        response_json,
+        settings.large_response_threshold_session,
+        source_endpoint=f"/api/sessions/{session_id}/summary",
+        source_params={"session_id": session_id, "limit": limit},
+    )
+    if large_ref:
+        response.large_response = large_ref
+
+    return response

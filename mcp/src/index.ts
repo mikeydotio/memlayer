@@ -2,17 +2,30 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { MemlayerClient } from "./api-client.js";
+import { MemlayerClient, type LargeResponseRef } from "./api-client.js";
+import { FileCache } from "./file-cache.js";
 
 const client = new MemlayerClient(
   process.env.MEMLAYER_SERVER_URL || "http://localhost:8420/api",
   process.env.MEMLAYER_AUTH_TOKEN || "",
 );
 
+const fileCache = new FileCache();
+
 const server = new McpServer({
   name: "claude-mem-mcp",
-  version: "0.2.0",
+  version: "0.3.0",
 });
+
+function formatLargeResponseNotice(ref: LargeResponseRef): string {
+  return [
+    `\n\n---\n**Large response offloaded to file** (${ref.size_bytes} bytes, type: ${ref.content_type})`,
+    `**File ID:** ${ref.file_id}`,
+    `\n**Summary:**\n${ref.summary}`,
+    `\n**Structural Index:**\n${ref.index}`,
+    `\nUse \`read_memory_file\` with file_id="${ref.file_id}" and line ranges from the index above to read specific sections.`,
+  ].join("\n");
+}
 
 server.tool(
   "search_memory",
@@ -61,20 +74,26 @@ server.tool(
           const header = `### Result ${i + 1} (score: ${r.rrf_score.toFixed(3)})`;
           const meta = `**Session:** ${r.session_id} | **Project:** ${r.project_path || "unknown"} | **Date:** ${r.created_at} | **Type:** ${r.content_type}${r.tool_name ? ` (${r.tool_name})` : ""}`;
           const content =
-            r.raw_content.length > 1500
-              ? r.raw_content.substring(0, 1500) + "...[truncated]"
+            r.raw_content.length > 50000
+              ? r.raw_content.substring(0, 50000) + "...[truncated]"
               : r.raw_content;
           return `${header}\n${meta}\n\n${content}`;
         })
         .join("\n\n---\n\n");
 
+      let text = `Found ${results.total} results (showing top ${results.results.length}, search: ${results.search_ms.toFixed(0)}ms):\n\n${formatted}`;
+
+      // Handle large response offloading
+      if (results.large_response) {
+        const ref = results.large_response;
+        await fileCache.ensureCached(ref.file_id, () =>
+          client.downloadFile(ref.file_id),
+        );
+        text += formatLargeResponseNotice(ref);
+      }
+
       return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Found ${results.total} results (showing top ${results.results.length}, search: ${results.search_ms.toFixed(0)}ms):\n\n${formatted}`,
-          },
-        ],
+        content: [{ type: "text" as const, text }],
       };
     } catch (e) {
       return {
@@ -126,15 +145,26 @@ server.tool(
             m.content_type !== "text" ? ` [${m.content_type}]` : "";
           const toolTag = m.tool_name ? ` (${m.tool_name})` : "";
           const content =
-            m.raw_content.length > 2000
-              ? m.raw_content.substring(0, 2000) + "...[truncated]"
+            m.raw_content.length > 50000
+              ? m.raw_content.substring(0, 50000) + "...[truncated]"
               : m.raw_content;
           return `**[${role}${typeTag}${toolTag}]** (${m.created_at})\n${content}`;
         })
         .join("\n\n");
 
+      let text = `${header}\n\n${messages}`;
+
+      // Handle large response offloading
+      if (summary.large_response) {
+        const ref = summary.large_response;
+        await fileCache.ensureCached(ref.file_id, () =>
+          client.downloadFile(ref.file_id),
+        );
+        text += formatLargeResponseNotice(ref);
+      }
+
       return {
-        content: [{ type: "text" as const, text: `${header}\n\n${messages}` }],
+        content: [{ type: "text" as const, text }],
       };
     } catch (e) {
       return {
@@ -142,6 +172,53 @@ server.tool(
           {
             type: "text" as const,
             text: `Session summary error: ${e instanceof Error ? e.message : String(e)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  },
+);
+
+server.tool(
+  "read_memory_file",
+  "Read a specific line range from a large response file that was offloaded during search or session summary. Use the structural index from the previous search/summary result to identify which lines to read.",
+  {
+    file_id: z
+      .string()
+      .uuid()
+      .describe("The file ID from the large_response reference"),
+    start_line: z
+      .number()
+      .min(1)
+      .describe("Start line number (1-indexed, inclusive)"),
+    end_line: z
+      .number()
+      .min(1)
+      .describe("End line number (1-indexed, inclusive)"),
+  },
+  async ({ file_id, start_line, end_line }) => {
+    try {
+      const localPath = await fileCache.ensureCached(file_id, () =>
+        client.downloadFile(file_id),
+      );
+
+      const content = fileCache.readLines(localPath, start_line, end_line);
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `Lines ${start_line}-${end_line} of file ${file_id}:\n\n${content}`,
+          },
+        ],
+      };
+    } catch (e) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: `File read error: ${e instanceof Error ? e.message : String(e)}`,
           },
         ],
         isError: true,

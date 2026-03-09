@@ -37,6 +37,19 @@ services:
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
       EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      FILE_STORAGE_PATH: /data/response_files
+      FILE_STORAGE_SOFT_LIMIT: ${FILE_STORAGE_SOFT_LIMIT:-0}
+      FILE_STORAGE_HARD_LIMIT: ${FILE_STORAGE_HARD_LIMIT:-0}
+      LARGE_RESPONSE_THRESHOLD_SEARCH: ${LARGE_RESPONSE_THRESHOLD_SEARCH:-5000}
+      LARGE_RESPONSE_THRESHOLD_SESSION: ${LARGE_RESPONSE_THRESHOLD_SESSION:-5000}
+      EVICTION_INTERVAL_SECS: ${EVICTION_INTERVAL_SECS:-60}
+      INDEX_MODE: ${INDEX_MODE:-off}
+      INDEX_LLM_PROVIDER: ${INDEX_LLM_PROVIDER:-}
+      INDEX_LLM_MODEL: ${INDEX_LLM_MODEL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - response-files:/data/response_files
+      - ./db/migrations/005_response_files.sql:/app/migrations/005_response_files.sql:ro
     ports:
       - "0.0.0.0:8420:8420"
 
@@ -52,3 +65,4 @@ services:
 volumes:
   pgdata:
   ollama-data:
+  response-files:

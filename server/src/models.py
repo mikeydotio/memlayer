@@ -50,11 +50,22 @@ class SearchResult(BaseModel):
     rrf_score: float
 
 
+class LargeResponseRef(BaseModel):
+    schema_version: int = 1
+    file_id: str
+    file_url: str
+    size_bytes: int
+    summary: str
+    index: str
+    content_type: str
+
+
 class SearchResponse(BaseModel):
     results: list[SearchResult]
     total: int
     query_embedding_ms: float
     search_ms: float
+    large_response: LargeResponseRef | None = None
 
 
 class SessionMessage(BaseModel):
@@ -73,3 +84,4 @@ class SessionSummary(BaseModel):
     created_at: datetime
     message_count: int
     messages: list[SessionMessage]
+    large_response: LargeResponseRef | None = None
