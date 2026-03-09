@@ -118,49 +118,61 @@
 ## v1.0.1 — Polish & Test Coverage
 
 ### Bug fixes
-- [ ] MCP file cache eviction (max size or TTL, currently grows forever)
-- [ ] Aggregate MCP response size budget (prevent 2.5M char responses)
+- [ ] MCP file cache eviction (50MB limit, FIFO eviction, check-before-write)
+- [ ] MCP response budget: 200KB total cap; no truncation — exceed threshold triggers Large Response (file-based) flow; remove per-result 50K char cap within total response
 - [ ] Update CLAUDE.md template with `read_memory_file` tool documentation
 - [ ] Daemon debounce map cleanup (prune stale entries in stats timer)
 
+### Analytics
+- [ ] Server-side response size analytics (track response sizes and large/file response frequency)
+
 ### Test coverage
 - [ ] MCP unit tests (api-client, file-cache)
-- [ ] E2E integration test (daemon → server → search round-trip via Docker Compose)
+- [ ] E2E integration test (daemon → server → search round-trip via isolated `docker-compose.test.yml`)
 
 ## v1.1.0 — Performance & Observability
 
-- [ ] Batch INSERT for ingest endpoint (executemany/COPY instead of one-at-a-time)
+- [ ] Batch INSERT for ingest endpoint (`executemany` with one-at-a-time fallback on error)
 - [ ] Embedding progress endpoint (`GET /api/embeddings/status`)
 - [ ] Embedding backfill progress in health endpoint
-- [ ] Ollama local embedding support tested and documented
-- [ ] HTTP Range support for file downloads
+- [ ] Ollama local embedding support: pick-one-provider model; real Ollama in Docker Compose test stack with `nomic-embed-text` (no mocking); mark as slow tests
+- [ ] Line-range endpoint (`GET /api/files/{id}/lines?start=N&end=M`): keep full-file download; client decides which to use; CLAUDE.md guidance: prefer line-range only when majority of response is irrelevant
+- [ ] Request pattern analytics (line-range vs full-download frequency)
 
-## v1.2.0 — Cloud Deployment Option
+## v1.2.0 — Server Web UI & Cloud Deployment
 
-- [ ] Supabase compatibility (PgBouncer / prepared statement handling, migration applicator)
-- [ ] AWS deployment via ECS/Fargate
-- [ ] `setup_server_cloud.sh` — guided cloud setup flow
-- [ ] IaC templates (CDK or Terraform) for one-click provisioning
-- [ ] Documentation for bring-your-own Supabase + AWS account
+### Server Web UI
+- [ ] Setup wizard / onboarding flow
+- [ ] Configuration management interface
+- [ ] Dashboard (stats, health, embedding progress)
+- [ ] Analytics dashboard (response sizes, request patterns, large response frequency, line-range vs file download ratios)
 
-## v1.3.0 — Multi-Tenancy & Auth
+### Cloud Deployment
+- [ ] DigitalOcean guided cloud setup (`setup_cloud.sh`) with shortened URLs to tutorial sub-pages on memlayer.io
+- [ ] Generic VPS setup documentation (Docker Compose instructions + env var reference)
+
+## v1.3.0 — Public Website & Launch
+
+- [ ] Astro static site on Cloudflare Pages (memlayer.io)
+- [ ] Landing page, architecture docs, getting started guide
+- [ ] Download page with dual-path options (self-hosted vs VPS)
+- [ ] Cloud onboarding tutorial sub-pages (linked from setup flow via shortened URLs)
+
+## v1.4.0 — Multi-Tenancy & Hosted Service
 
 - [ ] User accounts with GitHub OAuth
 - [ ] Per-user API key generation and management
-- [ ] Tenant ID on all tables with row-level security
+- [ ] Application-level tenant filtering (not Postgres RLS)
 - [ ] Rate limiting and usage metering
 - [ ] Data export and deletion endpoints (GDPR)
 - [ ] Background job queue replacing in-process embedding worker
-
-## v1.4.0 — Public Launch
-
-- [ ] Public website (landing page, docs, pricing)
+- [ ] "Option 3: You host it for me" — hosted/reseller model
 - [ ] Stripe billing integration with subscription tiers
-- [ ] Web dashboard (signup, API key management, usage stats)
+- [ ] Web dashboard for hosted users (signup, API key management, usage stats)
 - [ ] One-liner install with embedded user credentials
 - [ ] Privacy policy and terms of service
-- [ ] Status page
+- [ ] Status page (Betterstack free tier)
 
 ## Triage / Need Scoping
 
-(empty — all items assigned to milestones)
+- [ ] Documentation for specific non-DigitalOcean VPS providers
