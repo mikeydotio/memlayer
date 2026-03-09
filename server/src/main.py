@@ -148,7 +148,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Memlayer server stopped (shutdown took {elapsed:.1f}s)")
 
 
-app = FastAPI(title="claude-mem-server", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="claude-mem-server", version="1.0.1", lifespan=lifespan)
 
 
 # Auth middleware
@@ -170,7 +170,7 @@ async def auth_middleware(request: Request, call_next):
     client_version = request.headers.get("X-Memlayer-Version", "")
     if client_version:
         # Compare major.minor — warn if different
-        server_parts = "1.0.0".split(".")[:2]
+        server_parts = "1.0.1".split(".")[:2]
         client_parts = client_version.split(".")[:2]
         if server_parts != client_parts:
             logger.warning(

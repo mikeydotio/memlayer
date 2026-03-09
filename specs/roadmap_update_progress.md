@@ -1,91 +1,82 @@
-# Roadmap & GitHub Milestones Update — Progress Tracker
+# Implementation Progress
 
-This file tracks granular progress for the roadmap interview → implementation session.
-If the session is interrupted, resume from the last unchecked item.
-
-## Context
-
-Updating roadmap and GitHub milestones based on a thorough interview covering v1.0.1 through v1.4.0+.
-Key changes: revised cloud strategy, new server web UI scope, Astro website, deferred multi-tenancy.
+Session recovery file. Resume from the last unchecked item.
 
 ---
 
-## Phase 1: Update `specs/roadmap.md`
+## v1.0.1 — Polish & Test Coverage — COMPLETE
 
-- [x] Rewrite v1.0.1 (file cache 50MB FIFO, 200KB response budget with file-based flow, analytics)
-- [x] Rewrite v1.1.0 (executemany + fallback, Ollama real testing, line-range endpoint, analytics)
-- [x] Rewrite v1.2.0 → "Server Web UI & Cloud Deployment" (web UI + DO/generic VPS)
-- [x] Rewrite v1.3.0 → "Public Website & Launch" (Astro/Cloudflare, no billing)
-- [x] Rewrite v1.4.0 → "Multi-Tenancy & Hosted Service" (everything deferred)
-- [x] Add Triage item: non-DO VPS provider docs
+All waves shipped. All 7 issues closed. Tagged v1.0.1.
 
-## Phase 2: Update GitHub Milestones
+### Wave 1 — COMPLETE
+- [x] #4 CLAUDE.md template (ddd5463)
+- [x] #5 Debounce map leak (4ed88d3)
+- [x] #3 Response budget 200KB (cdb900d)
+- [x] #2 File cache eviction (d470d6a)
 
-- [x] Milestone 1 (v1.0.1): description updated
-- [x] Milestone 2 (v1.1.0): description updated
-- [x] Milestone 3: renamed to "v1.2.0 — Server Web UI & Cloud Deployment"
-- [x] Milestone 4: renamed to "v1.4.0 — Multi-Tenancy & Hosted Service"
-- [x] Milestone 5: renamed to "v1.3.0 — Public Website & Launch"
+### Wave 2 — COMPLETE
+- [x] #29 Response analytics (6843b17)
 
-## Phase 3: Close Obsolete Issues
+### Wave 3 — COMPLETE
+- [x] #6 MCP unit tests — 15 tests (431c241)
 
-- [x] #11 Supabase compatibility — closed
-- [x] #12 AWS ECS/Fargate — closed
-- [x] #14 IaC templates — closed
+### Wave 4 — COMPLETE
+- [x] #7 E2E integration test — 9 tests, isolated docker-compose.test.yml (9b3a3e3)
+- [x] Bonus: Fixed auth middleware 500→401 bug
 
-## Phase 4: Update Existing Issues
+### Release — COMPLETE
+- [x] All v1.0.1 issues closed on GitHub
+- [x] Version strings bumped: server, daemon, MCP
+- [x] Tagged v1.0.1
 
-- [x] #3 → "MCP response budget: 200KB cap with file-based overflow"
-- [x] #8 → body updated with executemany + fallback approach
-- [x] #13 → "DigitalOcean guided cloud setup (setup_cloud.sh)"
-- [x] #17 → "Application-level tenant filtering" (not Postgres RLS)
-- [x] #21 → "Astro site scaffolding + Cloudflare Pages deployment"
-- [x] #23 → "Web dashboard for hosted users"
-- [x] #27 → "Ollama local embedding support with integration tests"
-- [x] #28 → "Line-range endpoint for file downloads"
-
-## Phase 5: Move Issues Between Milestones
-
-- [x] #22 (Stripe billing) → milestone 4 (v1.4.0)
-- [x] #23 (Web dashboard) → milestone 4 (v1.4.0)
-- [x] #24 (One-liner install) → milestone 4 (v1.4.0)
-- [x] #25 (Privacy policy) → milestone 4 (v1.4.0)
-- [x] #26 (Status page) → milestone 4 (v1.4.0)
-- [x] #21 stays in milestone 5 (now v1.3.0)
-
-## Phase 6: Create New Issues
-
-- [x] #29 Server-side response size analytics (v1.0.1)
-- [x] #30 Request pattern analytics — line-range vs file download (v1.1.0)
-- [x] #31 Server web UI — setup wizard, config, dashboard, analytics (v1.2.0)
-- [x] #32 Generic VPS setup documentation (v1.2.0)
-- [x] #33 Download page with dual-path options (v1.3.0)
-- [x] #34 Cloud onboarding tutorial sub-pages (v1.3.0)
-- [x] #35 Hosted/reseller model — "You host it for me" (v1.4.0)
-- [x] #36 Documentation for non-DO VPS providers (Triage, no milestone)
-
-## Phase 7: Verification
-
-- [x] Verify milestones via `gh api` — all 5 milestones correct
-- [x] Verify issue assignments via `gh issue list` — all 34 open issues in correct milestones
-- [x] Confirm roadmap.md matches GitHub state — confirmed
-
-## Commits
-
-| Commit | Contents | Pushed? |
-|--------|----------|---------|
-| a125195 | roadmap.md rewrite + this progress file | Yes |
-| (pending) | verification complete update | No |
+### Test Summary
+- Daemon: 63 tests (cargo test)
+- Server: 110 tests (pytest)
+- MCP: 15 tests (vitest)
+- E2E: 9 tests (docker-compose.test.yml + e2e.sh)
+- **Total: 197 tests**
 
 ---
 
-## Final Milestone Summary (expected)
+## v1.1.0 — Performance & Observability — NOT STARTED
 
-| Milestone | Issues (open) |
-|-----------|---------------|
-| v1.0.1 — Polish & Test Coverage | #2, #3, #4, #5, #6, #7, #29 |
-| v1.1.0 — Performance & Observability | #8, #9, #10, #27, #28, #30 |
-| v1.2.0 — Server Web UI & Cloud Deployment | #13, #31, #32 |
-| v1.3.0 — Public Website & Launch | #21, #33, #34 |
-| v1.4.0 — Multi-Tenancy & Hosted Service | #15, #16, #17, #18, #19, #20, #22, #23, #24, #25, #26, #35 |
-| Triage (no milestone) | #1, #36 |
+### Dependency Graph
+```
+Wave 1 (parallel, no deps):
+  #8   Batch INSERT (executemany + fallback)
+  #9   Embedding progress endpoint
+  #10  Embedding progress in health endpoint
+  #27  Ollama integration tests (real Docker Compose + nomic-embed-text)
+
+Wave 2 (depends on nothing, but logically after file endpoints exist):
+  #28  Line-range endpoint (GET /api/files/{id}/lines)
+  #30  Request pattern analytics
+
+Wave 3 (depends on all above):
+  Run full test suite, tag v1.1.0
+```
+
+### Issues
+- [ ] #8 Batch INSERT for ingest (executemany + one-at-a-time fallback)
+- [ ] #9 Embedding progress endpoint (GET /api/embeddings/status)
+- [ ] #10 Embedding progress in health endpoint
+- [ ] #27 Ollama integration tests (real Ollama in Docker Compose test stack)
+- [ ] #28 Line-range endpoint (GET /api/files/{id}/lines?start=N&end=M)
+- [ ] #30 Request pattern analytics (line-range vs file download)
+
+---
+
+## Commits Log
+
+| Hash | Issue | Description | Pushed |
+|------|-------|-------------|--------|
+| a125195 | — | Roadmap rewrite from interview | Yes |
+| 9ec2826 | — | Verification complete | Yes |
+| 1846c65 | — | Rename progress file | Yes |
+| ddd5463 | #4 | CLAUDE.md template: add read_memory_file docs | Yes |
+| 4ed88d3 | #5 | Debounce map: prune stale entries every 60s | Yes |
+| cdb900d | #3 | 200KB response budget with file-based overflow | Yes |
+| d470d6a | #2 | File cache eviction: 50MB soft / 100MB hard, FIFO | Yes |
+| 6843b17 | #29 | Server-side response size analytics | Yes |
+| 431c241 | #6 | MCP unit tests: file-cache + api-client (15 tests) | Yes |
+| 9b3a3e3 | #7 | E2E test + auth middleware fix (9 tests) | Yes |
