@@ -115,7 +115,25 @@
 - [x] Upgrade guide (v0.x → v1.0 migration checklist)
 - [x] Target audience: experienced devs and vibe coders alike
 
-## v1.1.0 — Cloud Deployment Option
+## v1.0.1 — Polish & Test Coverage
+
+### Bug fixes
+- [ ] MCP file cache eviction (max size or TTL, currently grows forever)
+- [ ] Aggregate MCP response size budget (prevent 2.5M char responses)
+- [ ] Update CLAUDE.md template with `read_memory_file` tool documentation
+- [ ] Daemon debounce map cleanup (prune stale entries in stats timer)
+
+### Test coverage
+- [ ] MCP unit tests (api-client, file-cache)
+- [ ] E2E integration test (daemon → server → search round-trip via Docker Compose)
+
+## v1.1.0 — Performance & Observability
+
+- [ ] Batch INSERT for ingest endpoint (executemany/COPY instead of one-at-a-time)
+- [ ] Embedding progress endpoint (`GET /api/embeddings/status`)
+- [ ] Embedding backfill progress in health endpoint
+
+## v1.2.0 — Cloud Deployment Option
 
 - [ ] Supabase compatibility (PgBouncer / prepared statement handling, migration applicator)
 - [ ] AWS deployment via ECS/Fargate
@@ -123,7 +141,7 @@
 - [ ] IaC templates (CDK or Terraform) for one-click provisioning
 - [ ] Documentation for bring-your-own Supabase + AWS account
 
-## v1.2.0 — Multi-Tenancy & Auth
+## v1.3.0 — Multi-Tenancy & Auth
 
 - [ ] User accounts with GitHub OAuth
 - [ ] Per-user API key generation and management
@@ -132,7 +150,7 @@
 - [ ] Data export and deletion endpoints (GDPR)
 - [ ] Background job queue replacing in-process embedding worker
 
-## v1.3.0 — Public Launch
+## v1.4.0 — Public Launch
 
 - [ ] Public website (landing page, docs, pricing)
 - [ ] Stripe billing integration with subscription tiers
