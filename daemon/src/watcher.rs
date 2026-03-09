@@ -241,16 +241,21 @@ impl Watcher {
                 }
                 _ = stats_timer.tick() => {
                     let (files, entries) = self.take_stats();
-                    let queue_depth = {
-                        // We don't have direct access to queue here, so report file/entry stats
-                        0u64 // Queue depth reported separately by drain loop
-                    };
                     info!(
                         files_processed = files,
                         entries_parsed = entries,
                         "Periodic stats (last 60s)"
                     );
-                    let _ = queue_depth; // suppress unused warning
+
+                    // Prune stale debounce map entries (older than 5 minutes)
+                    let stale_threshold = tokio::time::Duration::from_secs(300);
+                    let now = tokio::time::Instant::now();
+                    let before = debounce_map.len();
+                    debounce_map.retain(|_, last| now.duration_since(*last) < stale_threshold);
+                    let pruned = before - debounce_map.len();
+                    if pruned > 0 {
+                        debug!(pruned, remaining = debounce_map.len(), "Pruned stale debounce entries");
+                    }
                 }
                 _ = shutdown_rx.changed() => {
                     if *shutdown_rx.borrow() {
