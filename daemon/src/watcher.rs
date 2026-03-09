@@ -82,13 +82,28 @@ impl Watcher {
         // Send in batches
         if !all_entries.is_empty() {
             let count = all_entries.len();
+            let mut all_ok = true;
             for chunk in all_entries.chunks(self.config.batch_size) {
-                self.sender.send_batch(chunk.to_vec()).await;
+                if let Err(e) = self.sender.send_batch(chunk.to_vec()).await {
+                    error!(
+                        path = %path_str,
+                        error = %e,
+                        "Failed to send or queue batch — not advancing cursor to prevent data loss"
+                    );
+                    all_ok = false;
+                    break;
+                }
             }
-            debug!(path = %path_str, entries = count, "Processed file");
+            if all_ok {
+                debug!(path = %path_str, entries = count, "Processed file");
+            } else {
+                // Do NOT advance cursor — entries will be re-read on next cycle
+                // (idempotent payload_hash dedup prevents duplicates for already-sent chunks)
+                return Ok(());
+            }
         }
 
-        // Update cursor
+        // Update cursor — only reached if all batches were sent or durably queued
         {
             let cursor = self.cursor.lock().await;
             cursor.set_offset(&path_str, new_offset)?;

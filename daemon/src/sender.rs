@@ -34,9 +34,13 @@ impl Sender {
         Sender { client, config, queue }
     }
 
-    pub async fn send_batch(&self, entries: Vec<ParsedEntry>) -> bool {
+    /// Send a batch of entries to the server.
+    ///
+    /// Returns Ok(()) if entries were successfully sent OR durably queued.
+    /// Returns Err if entries could not be sent AND could not be queued (data loss risk).
+    pub async fn send_batch(&self, entries: Vec<ParsedEntry>) -> Result<(), Box<dyn std::error::Error>> {
         if entries.is_empty() {
-            return true;
+            return Ok(());
         }
 
         let url = format!("{}/ingest", self.config.server_url);
@@ -58,27 +62,38 @@ impl Sender {
                             "Ingest batch sent"
                         );
                     }
-                    true
+                    Ok(())
                 } else {
                     let status = resp.status();
-                    warn!(status = %status, "Server returned error, queueing entries");
-                    self.enqueue_entries(entries).await;
-                    false
+                    let code = status.as_u16();
+                    if status.is_client_error() && code != 401 && code != 413 && code != 429 {
+                        // 4xx (except auth/size/rate errors): will never succeed, don't queue
+                        error!(status = %status, "Server rejected batch with client error (not retryable)");
+                        Ok(())
+                    } else {
+                        // 5xx: server error — queue for retry
+                        warn!(status = %status, "Server returned error, queueing entries");
+                        self.enqueue_entries(entries).await
+                    }
                 }
             }
             Err(e) => {
                 warn!(error = %e, "Failed to send batch, queueing entries");
-                self.enqueue_entries(entries).await;
-                false
+                self.enqueue_entries(entries).await
             }
         }
     }
 
-    async fn enqueue_entries(&self, entries: Vec<ParsedEntry>) {
+    /// Enqueue entries to the offline SQLite queue.
+    ///
+    /// Returns Ok(()) if entries were durably queued.
+    /// Returns Err if queueing failed (data loss risk).
+    async fn enqueue_entries(&self, entries: Vec<ParsedEntry>) -> Result<(), Box<dyn std::error::Error>> {
         let q = self.queue.lock().await;
-        if let Err(e) = q.enqueue(&entries) {
-            error!(error = %e, "Failed to enqueue entries");
-        }
+        q.enqueue(&entries).map_err(|e| {
+            error!(error = %e, "Failed to enqueue entries — DATA LOSS: entries neither sent nor queued");
+            e
+        })
     }
 
     pub async fn drain_queue_loop(&self) {
@@ -128,8 +143,22 @@ impl Sender {
                     info!(count = ids.len(), "Queue drained successfully");
                     delay_secs = 30; // Reset on success
                 }
+                Ok(resp) if resp.status().is_client_error()
+                    && resp.status().as_u16() != 401
+                    && resp.status().as_u16() != 413
+                    && resp.status().as_u16() != 429 =>
+                {
+                    // 4xx (except auth/size/rate errors): will never succeed, remove from queue
+                    error!(status = %resp.status(), "Queue drain got client error (not retryable), removing entries");
+                    let q = self.queue.lock().await;
+                    if let Err(e) = q.remove(&ids) {
+                        error!(error = %e, "Failed to remove rejected entries from queue");
+                    }
+                    delay_secs = 30; // Reset — not a transient error
+                }
                 Ok(resp) => {
-                    warn!(status = %resp.status(), "Queue drain failed, backing off");
+                    // 5xx: server error — back off and retry
+                    warn!(status = %resp.status(), "Queue drain failed with server error, backing off");
                     delay_secs = (delay_secs * 2).min(self.config.max_retry_delay_secs);
                 }
                 Err(e) => {

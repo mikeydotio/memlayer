@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     embedding_dimensions: int = 1536
     ollama_base_url: str = "http://localhost:11434"
-    embedding_batch_size: int = 100
+    embedding_batch_size: int = 20
     embedding_interval_secs: float = 5.0
 
     # Large response settings

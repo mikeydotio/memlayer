@@ -8,8 +8,8 @@ Type=simple
 ExecStart={{DAEMON_PATH}}
 Restart=always
 RestartSec=10
-Environment=MEMLAYER_SERVER_URL={{SERVER_URL}}
-Environment=MEMLAYER_AUTH_TOKEN={{AUTH_TOKEN}}
+EnvironmentFile=%h/.config/memlayer/env
+Environment=MEMLAYER_WATCH_PATH=%h/.claude/projects
 Environment=RUST_LOG=info
 
 [Install]

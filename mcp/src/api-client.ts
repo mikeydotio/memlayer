@@ -63,13 +63,28 @@ export class MemlayerClient {
     return h;
   }
 
+  private async fetchWithTimeout(
+    url: string,
+    options: RequestInit = {},
+    timeoutMs: number = 30000,
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const resp = await fetch(url, { ...options, signal: controller.signal });
+      return resp;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async search(params: {
     query: string;
     session_id?: string;
     project_path?: string;
     limit: number;
   }): Promise<SearchResponse> {
-    const resp = await fetch(`${this.baseUrl}/search`, {
+    const resp = await this.fetchWithTimeout(`${this.baseUrl}/search`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(params),
@@ -84,7 +99,7 @@ export class MemlayerClient {
     sessionId: string,
     limit: number = 200,
   ): Promise<SessionSummary> {
-    const resp = await fetch(
+    const resp = await this.fetchWithTimeout(
       `${this.baseUrl}/sessions/${sessionId}/summary?limit=${limit}`,
       { headers: this.headers() },
     );
@@ -97,7 +112,7 @@ export class MemlayerClient {
   }
 
   async downloadFile(fileId: string): Promise<string> {
-    const resp = await fetch(`${this.baseUrl}/files/${fileId}`, {
+    const resp = await this.fetchWithTimeout(`${this.baseUrl}/files/${fileId}`, {
       headers: this.headers(),
     });
     if (!resp.ok) {

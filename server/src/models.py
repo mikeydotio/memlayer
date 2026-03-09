@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 
@@ -33,7 +33,7 @@ class SearchRequest(BaseModel):
     query: str
     session_id: str | None = None
     project_path: str | None = None
-    limit: int = 20
+    limit: int = Field(default=20, ge=1, le=100)
 
 
 class SearchResult(BaseModel):

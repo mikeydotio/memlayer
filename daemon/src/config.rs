@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Config {
     pub server_url: String,
     pub auth_token: String,
@@ -10,6 +10,21 @@ pub struct Config {
     pub batch_size: usize,
     pub flush_interval_secs: u64,
     pub max_retry_delay_secs: u64,
+}
+
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config")
+            .field("server_url", &self.server_url)
+            .field("auth_token", &"[REDACTED]")
+            .field("watch_path", &self.watch_path)
+            .field("data_dir", &self.data_dir)
+            .field("machine_id", &self.machine_id)
+            .field("batch_size", &self.batch_size)
+            .field("flush_interval_secs", &self.flush_interval_secs)
+            .field("max_retry_delay_secs", &self.max_retry_delay_secs)
+            .finish()
+    }
 }
 
 impl Config {

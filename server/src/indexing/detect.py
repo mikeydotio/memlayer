@@ -4,12 +4,14 @@ import re
 
 def detect_content_type(content: str) -> str:
     """Detect content type: 'markdown', 'code', 'json', or 'text'."""
-    # JSON: try parsing first 1024 bytes
-    try:
-        json.loads(content[:1024] if len(content) > 1024 else content)
-        return "json"
-    except (json.JSONDecodeError, ValueError):
-        pass
+    stripped = content.strip()
+    # JSON: check if starts with { or [ and try parsing full content
+    if stripped.startswith(("{", "[")):
+        try:
+            json.loads(content)
+            return "json"
+        except (json.JSONDecodeError, ValueError):
+            pass
 
     lines = content.split("\n")[:50]
 

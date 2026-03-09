@@ -182,12 +182,15 @@ fi
 # ── Step 4: Auth token ──────────────────────────────────────────────
 step 4 $TOTAL_STEPS "Configuring authentication"
 
-# Check existing token in service files
+# Check existing token in env file or service files
 existing_token=""
+env_file="$HOME/.config/memlayer/env"
 service_file="$HOME/.config/systemd/user/claude-mem-daemon.service"
 plist_file="$HOME/Library/LaunchAgents/io.memlayer.daemon.plist"
 
-if [[ -f "$service_file" ]]; then
+if [[ -f "$env_file" ]]; then
+    existing_token=$(grep '^MEMLAYER_AUTH_TOKEN=' "$env_file" | tail -1 | sed 's/^MEMLAYER_AUTH_TOKEN=//')
+elif [[ -f "$service_file" ]]; then
     existing_token=$(grep 'MEMLAYER_AUTH_TOKEN=' "$service_file" | tail -1 | sed 's/.*MEMLAYER_AUTH_TOKEN=//')
 fi
 if [[ -z "$existing_token" && -f "$plist_file" ]]; then
@@ -264,11 +267,20 @@ if [[ "$_os" == "linux" ]]; then
 
     if [[ "${_skip_service:-}" != "true" ]]; then
         if confirm "Install systemd service for automatic startup?" "y"; then
+            # Write secrets to env file (not embedded in service unit)
+            env_dir="$HOME/.config/memlayer"
+            env_file="$env_dir/env"
+            mkdir -p "$env_dir"
+            cat > "$env_file" <<ENVEOF
+MEMLAYER_AUTH_TOKEN=$auth_token
+MEMLAYER_SERVER_URL=$server_url
+ENVEOF
+            chmod 600 "$env_file"
+            success "Credentials written to $env_file"
+
             mkdir -p "$service_dir"
             sed \
                 -e "s|{{DAEMON_PATH}}|$DAEMON_BIN|g" \
-                -e "s|{{SERVER_URL}}|$server_url|g" \
-                -e "s|{{AUTH_TOKEN}}|$auth_token|g" \
                 "$SCRIPT_DIR/scripts/claude-mem-daemon.service.template" > "$service_path"
 
             systemctl --user daemon-reload

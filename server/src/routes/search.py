@@ -3,7 +3,7 @@ import logging
 import time
 
 import numpy as np
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from ..config import settings
 from ..db import get_pool
@@ -144,7 +144,7 @@ async def search(req: SearchRequest):
 
 
 @router.get("/sessions/{session_id}/summary", response_model=SessionSummary)
-async def session_summary(session_id: str, limit: int = 200):
+async def session_summary(session_id: str, limit: int = Query(default=200, ge=1, le=1000)):
     pool = get_pool()
 
     session = await pool.fetchrow(

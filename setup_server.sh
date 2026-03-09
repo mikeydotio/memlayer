@@ -150,9 +150,10 @@ print_box \
     "API base:     http://localhost:8420/api" \
     "Embeddings:   $embed_status" \
     "" \
-    "Auth Token:   $display_token" \
+    "Auth Token:   $(mask_token "$display_token")" \
     "" \
     "Next step: run setup_client.sh on each client machine." \
     "Pass the auth token shown above when prompted."
 
+echo "  To view the full auth token: grep MEMLAYER_AUTH_TOKEN .env"
 echo

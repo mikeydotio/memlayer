@@ -1,4 +1,5 @@
 import asyncio
+import hmac
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -21,14 +22,76 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     await init_pool()
 
-    # Run new migration for response_files table
+    # Run migrations
     from .db import get_pool
     pool = get_pool()
-    migration_path = "/app/migrations/005_response_files.sql"
-    if os.path.exists(migration_path):
-        with open(migration_path) as f:
-            await pool.execute(f.read())
-        logger.info("Applied migration 005_response_files.sql")
+
+    # Ensure migration tracking table exists
+    await pool.execute("""
+        CREATE TABLE IF NOT EXISTS applied_migrations (
+            filename VARCHAR(256) PRIMARY KEY,
+            applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
+
+    # Apply all pending migrations
+    migration_dir = "/app/migrations"
+    if os.path.isdir(migration_dir):
+        migration_files = sorted(
+            f for f in os.listdir(migration_dir) if f.endswith(".sql")
+        )
+
+        # Seed tracking table: if it's empty but DB has tables from Docker init,
+        # record migrations that were already applied by Docker entrypoint (001-005)
+        tracked_count = await pool.fetchval(
+            "SELECT COUNT(*) FROM applied_migrations"
+        )
+        if tracked_count == 0:
+            # Check if DB was already initialized (memory_entries exists = migrations ran)
+            tables_exist = await pool.fetchval("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_name = 'memory_entries'
+                )
+            """)
+            if tables_exist:
+                # Only seed migrations that Docker init would have run (those that
+                # existed when the DB was first created). We detect this by checking
+                # if the objects they create already exist.
+                seed_checks = {
+                    "001_extensions.sql": "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')",
+                    "002_tables.sql": "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'memory_entries')",
+                    "003_indexes.sql": "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_entries_fts')",
+                    "004_functions.sql": "SELECT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'hybrid_search')",
+                    "005_response_files.sql": "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'response_files')",
+                }
+                seeded = 0
+                for filename in migration_files:
+                    if filename in seed_checks:
+                        exists = await pool.fetchval(seed_checks[filename])
+                        if exists:
+                            await pool.execute(
+                                "INSERT INTO applied_migrations (filename) VALUES ($1) ON CONFLICT DO NOTHING",
+                                filename,
+                            )
+                            seeded += 1
+                if seeded:
+                    logger.info(f"Seeded migration tracking with {seeded} pre-existing migrations")
+
+        for filename in migration_files:
+            already = await pool.fetchval(
+                "SELECT 1 FROM applied_migrations WHERE filename = $1", filename
+            )
+            if already:
+                continue
+            filepath = os.path.join(migration_dir, filename)
+            with open(filepath) as f:
+                sql = f.read()
+            await pool.execute(sql)
+            await pool.execute(
+                "INSERT INTO applied_migrations (filename) VALUES ($1)", filename
+            )
+            logger.info(f"Applied migration {filename}")
 
     os.makedirs(settings.file_storage_path, exist_ok=True)
 
@@ -39,11 +102,15 @@ async def lifespan(app: FastAPI):
     yield
     embed_task.cancel()
     evict_task.cancel()
+    try:
+        await asyncio.gather(embed_task, evict_task, return_exceptions=True)
+    except Exception:
+        pass
     await close_pool()
     logger.info("Memlayer server stopped")
 
 
-app = FastAPI(title="claude-mem-server", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="claude-mem-server", version="0.3.1", lifespan=lifespan)
 
 
 # Auth middleware
@@ -57,7 +124,8 @@ async def auth_middleware(request: Request, call_next):
 
     if settings.memlayer_auth_token:
         auth = request.headers.get("Authorization", "")
-        if auth != f"Bearer {settings.memlayer_auth_token}":
+        expected = f"Bearer {settings.memlayer_auth_token}"
+        if not hmac.compare_digest(auth, expected):
             raise HTTPException(401, "Invalid or missing auth token")
 
     return await call_next(request)
@@ -70,4 +138,23 @@ app.include_router(files_router, prefix="/api")
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    status = {"status": "ok", "components": {}}
+
+    # Check database
+    try:
+        from .db import get_pool
+        pool = get_pool()
+        await pool.fetchval("SELECT 1")
+        status["components"]["database"] = "ok"
+    except Exception as e:
+        status["components"]["database"] = f"error: {e}"
+        status["status"] = "degraded"
+
+    # Check embeddings
+    from .embeddings import _embedder
+    if _embedder:
+        status["components"]["embeddings"] = f"ok ({settings.embedding_provider})"
+    else:
+        status["components"]["embeddings"] = "disabled (FTS-only)"
+
+    return status

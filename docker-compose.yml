@@ -49,9 +49,15 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
       - response-files:/data/response_files
-      - ./db/migrations/005_response_files.sql:/app/migrations/005_response_files.sql:ro
+      - ./db/migrations:/app/migrations:ro
     ports:
-      - "0.0.0.0:8420:8420"
+      - "${MEMLAYER_BIND_ADDR:-0.0.0.0}:8420:8420"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8420/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   ollama:
     image: ollama/ollama

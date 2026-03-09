@@ -30,8 +30,15 @@ Get chronological conversation history for a specific session.
 - `session_id`: The session UUID to retrieve
 - `limit`: (optional) Max entries, default 200
 
+### read_memory_file
+Read specific line ranges from a large response file that was offloaded to storage. Use this after `search_memory` or `get_session_summary` returns a `large_response` reference with a structural index. The index tells you which line ranges contain the content you need.
+- `file_id`: The file UUID from the `large_response.file_id` field
+- `start_line`: Start line number (1-indexed, inclusive)
+- `end_line`: End line number (1-indexed, inclusive)
+
 ## Usage Pattern
 1. Search broadly first with `search_memory`
 2. If a result looks relevant, use `get_session_summary` with its session_id for full context
-3. Present findings with session date and project context
-4. If no results found, say so honestly — do not fabricate memories
+3. If search or summary results include a `large_response` reference, use `read_memory_file` with the file_id and line ranges from the structural index to read specific sections
+4. Present findings with session date and project context
+5. If no results found, say so honestly — do not fabricate memories
