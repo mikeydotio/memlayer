@@ -51,19 +51,6 @@ def client(mock_pool):
                                 yield TestClient(app, raise_server_exceptions=False)
 
 
-@pytest.fixture
-def strict_client(mock_pool):
-    """TestClient with raise_server_exceptions=True for testing middleware exceptions."""
-    with patch("src.db.pool", mock_pool):
-        with patch("src.routes.ingest.get_pool", return_value=mock_pool):
-            with patch("src.routes.search.get_pool", return_value=mock_pool):
-                with patch("src.routes.files.get_file_path", new_callable=AsyncMock):
-                    with patch("src.embeddings.embed_query", new_callable=AsyncMock, return_value=None):
-                        with patch("src.routes.search.embed_query", new_callable=AsyncMock, return_value=None):
-                            with patch("src.routes.ingest.enqueue_ids", new_callable=AsyncMock):
-                                from src.main import app
-                                yield TestClient(app, raise_server_exceptions=True)
-
 
 @pytest.fixture
 def auth_headers():
@@ -90,30 +77,21 @@ class TestHealthEndpoint:
 
 
 class TestAuthMiddleware:
-    """Tests for auth middleware.
+    """Tests for auth middleware."""
 
-    Note: FastAPI's HTTPException raised inside @app.middleware("http") does
-    not translate to proper HTTP responses in Starlette's TestClient (returns
-    500 instead of 401). This is a known Starlette limitation. We use
-    raise_server_exceptions=True and catch the HTTPException to verify the
-    middleware correctly rejects unauthenticated/bad-token requests.
-    """
+    def test_api_endpoint_requires_auth(self, client):
+        """API endpoints should return 401 without auth token."""
+        resp = client.post("/api/search", json={"query": "test"})
+        assert resp.status_code == 401
 
-    def test_api_endpoint_requires_auth(self, strict_client):
-        """API endpoints should raise HTTPException(401) without auth token."""
-        with pytest.raises(HTTPException) as exc_info:
-            strict_client.post("/api/search", json={"query": "test"})
-        assert exc_info.value.status_code == 401
-
-    def test_api_endpoint_wrong_token(self, strict_client):
-        """API endpoints should raise HTTPException(401) with wrong auth token."""
-        with pytest.raises(HTTPException) as exc_info:
-            strict_client.post(
-                "/api/search",
-                json={"query": "test"},
-                headers={"Authorization": "Bearer wrong-token"},
-            )
-        assert exc_info.value.status_code == 401
+    def test_api_endpoint_wrong_token(self, client):
+        """API endpoints should return 401 with wrong auth token."""
+        resp = client.post(
+            "/api/search",
+            json={"query": "test"},
+            headers={"Authorization": "Bearer wrong-token"},
+        )
+        assert resp.status_code == 401
 
     def test_api_endpoint_valid_token(self, client, auth_headers, mock_pool):
         """API endpoints should accept valid auth token."""
@@ -130,17 +108,15 @@ class TestAuthMiddleware:
         resp = client.get("/health")
         assert resp.status_code == 200
 
-    def test_ingest_requires_auth(self, strict_client):
+    def test_ingest_requires_auth(self, client):
         """Ingest endpoint should require auth."""
-        with pytest.raises(HTTPException) as exc_info:
-            strict_client.post("/api/ingest", json={"entries": []})
-        assert exc_info.value.status_code == 401
+        resp = client.post("/api/ingest", json={"entries": []})
+        assert resp.status_code == 401
 
-    def test_session_summary_requires_auth(self, strict_client):
+    def test_session_summary_requires_auth(self, client):
         """Session summary should require auth."""
-        with pytest.raises(HTTPException) as exc_info:
-            strict_client.get("/api/sessions/sess-001/summary")
-        assert exc_info.value.status_code == 401
+        resp = client.get("/api/sessions/sess-001/summary")
+        assert resp.status_code == 401
 
 
 class TestIngestEndpoint:

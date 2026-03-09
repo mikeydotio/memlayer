@@ -1,0 +1,66 @@
+# Isolated E2E test stack — different ports, container names, volumes, and network
+# Usage: docker compose -f docker-compose.test.yml up -d --build --wait
+#        ./tests/e2e.sh
+#        docker compose -f docker-compose.test.yml down -v
+
+services:
+  test-db:
+    image: pgvector/pgvector:pg16
+    container_name: memlayer-test-db
+    environment:
+      POSTGRES_DB: memlayer_test
+      POSTGRES_USER: memlayer
+      POSTGRES_PASSWORD: test-password
+    volumes:
+      - test-pgdata:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d/migrations:ro
+      - ./db/init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memlayer -d memlayer_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+    shm_size: 128mb
+    networks:
+      - test-net
+
+  test-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: memlayer-test-server
+    depends_on:
+      test-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://memlayer:test-password@test-db:5432/memlayer_test
+      MEMLAYER_AUTH_TOKEN: test-e2e-token
+      EMBEDDING_PROVIDER: openai
+      OPENAI_API_KEY: ""
+      FILE_STORAGE_PATH: /data/response_files
+      RESPONSE_BUDGET_BYTES: "200000"
+      INDEX_MODE: "off"
+      LOG_LEVEL: DEBUG
+    volumes:
+      - test-response-files:/data/response_files
+      - ./db/migrations:/app/migrations:ro
+    ports:
+      - "127.0.0.1:8421:8420"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8420/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - test-net
+
+volumes:
+  test-pgdata:
+  test-response-files:
+
+networks:
+  test-net:
+    driver: bridge

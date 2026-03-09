@@ -7,6 +7,7 @@ import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
 
 from .config import settings
 from .db import init_pool, close_pool
@@ -163,7 +164,7 @@ async def auth_middleware(request: Request, call_next):
         auth = request.headers.get("Authorization", "")
         expected = f"Bearer {settings.memlayer_auth_token}"
         if not hmac.compare_digest(auth, expected):
-            raise HTTPException(401, "Invalid or missing auth token")
+            return JSONResponse(status_code=401, content={"detail": "Invalid or missing auth token"})
 
     # Version compatibility check
     client_version = request.headers.get("X-Memlayer-Version", "")
