@@ -132,6 +132,8 @@
 - [ ] Batch INSERT for ingest endpoint (executemany/COPY instead of one-at-a-time)
 - [ ] Embedding progress endpoint (`GET /api/embeddings/status`)
 - [ ] Embedding backfill progress in health endpoint
+- [ ] Ollama local embedding support tested and documented
+- [ ] HTTP Range support for file downloads
 
 ## v1.2.0 — Cloud Deployment Option
 
@@ -161,5 +163,4 @@
 
 ## Triage / Need Scoping
 
-- [ ] Ollama local embedding support tested and documented
-- [ ] HTTP Range support for file downloads
+(empty — all items assigned to milestones)
