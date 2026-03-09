@@ -14,7 +14,7 @@ const fileCache = new FileCache();
 
 const server = new McpServer({
   name: "claude-mem-mcp",
-  version: "0.4.0",
+  version: "1.0.0",
 });
 
 function formatLargeResponseNotice(ref: LargeResponseRef): string {

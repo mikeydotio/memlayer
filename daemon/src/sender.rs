@@ -51,6 +51,7 @@ impl Sender {
         if !self.config.auth_token.is_empty() {
             builder = builder.header("Authorization", format!("Bearer {}", self.config.auth_token));
         }
+        builder = builder.header("X-Memlayer-Version", env!("CARGO_PKG_VERSION"));
 
         match builder.send().await {
             Ok(resp) => {
@@ -130,6 +131,7 @@ impl Sender {
         if !self.config.auth_token.is_empty() {
             builder = builder.header("Authorization", format!("Bearer {}", self.config.auth_token));
         }
+        builder = builder.header("X-Memlayer-Version", env!("CARGO_PKG_VERSION"));
 
         match builder.send().await {
             Ok(resp) if resp.status().is_success() => {

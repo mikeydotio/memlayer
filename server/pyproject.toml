@@ -1,6 +1,6 @@
 [project]
 name = "claude-mem-server"
-version = "0.5.0"
+version = "1.0.0"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
@@ -16,3 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-asyncio", "httpx"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

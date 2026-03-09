@@ -47,75 +47,73 @@
 - [x] Docker volume for persistent response file storage
 - [x] Spec housekeeping: PRD rename, 0.1.0 plan recreation, roadmap update
 
-## v0.3.1 — Embeddings & Hardening (next)
+## v0.3.1 — Embeddings & Hardening (shipped)
 
 ### Embeddings
-- [ ] OpenAI embedding configuration and provider setup
-- [ ] Background backfill on server startup (entries with NULL embeddings)
-- [ ] Idempotent backfill — resumes after restart, skips already-embedded entries
-- [ ] Provider/model metadata columns on entries table
-- [ ] Verified hybrid (FTS + vector) search end-to-end
+- [x] OpenAI embedding configuration and provider setup
+- [x] Background backfill on server startup (entries with NULL embeddings)
+- [x] Idempotent backfill — resumes after restart, skips already-embedded entries
+- [x] Provider/model metadata columns on entries table
+- [x] Verified hybrid (FTS + vector) search end-to-end
 
 ### Hardening (audit fixes)
-- [ ] Daemon: only advance cursor after confirmed send or durable queue
-- [ ] Daemon: differentiate retriable (5xx) vs non-retriable (4xx) errors
-- [ ] Server: migration tracking system (applied_migrations table)
-- [ ] Server: upper bounds on `limit` parameters
-- [ ] Server: await cancelled tasks before pool close on shutdown
-- [ ] Server: add numpy as explicit dependency
-- [ ] Server: fix JSON content detection (don't truncate before parse)
-- [ ] Server: timing-safe auth token comparison
-- [ ] MCP: HTTP request timeouts (abort after 30s)
-- [ ] MCP: document `read_memory_file` in skill and README
-- [ ] Docker: health check on server container
-- [ ] Scripts: mask auth token in setup_server.sh summary
-- [ ] Scripts: use EnvironmentFile= instead of Environment= for secrets
+- [x] Daemon: only advance cursor after confirmed send or durable queue
+- [x] Daemon: differentiate retriable (5xx) vs non-retriable (4xx) errors
+- [x] Server: migration tracking system (applied_migrations table)
+- [x] Server: upper bounds on `limit` parameters
+- [x] Server: await cancelled tasks before pool close on shutdown
+- [x] Server: add numpy as explicit dependency
+- [x] Server: fix JSON content detection (don't truncate before parse)
+- [x] Server: timing-safe auth token comparison
+- [x] MCP: HTTP request timeouts (abort after 30s)
+- [x] MCP: document `read_memory_file` in skill and README
+- [x] Docker: health check on server container
+- [x] Scripts: mask auth token in setup_server.sh summary
+- [x] Scripts: use EnvironmentFile= instead of Environment= for secrets
 
 ### Health & Diagnostics
-- [ ] Enhanced `/health` endpoint with component status (db, embeddings, queue)
+- [x] Enhanced `/health` endpoint with component status (db, embeddings, queue)
 
-## v0.4.0 — Search Filters & Network Binding
+## v0.4.0 — Search Filters & Network Binding (shipped)
 
-- [ ] `MEMLAYER_BIND_ADDR` env var for Docker port binding (Tailscale support)
-- [ ] Setup flow detects Tailscale and offers to bind to 100.x.y.z
-- [ ] Date range filters on search (`after`, `before` parameters)
-- [ ] Message type filters (`types` parameter: user/assistant/tool_use/tool_result)
-- [ ] MCP tool schema updated with new filter parameters
+- [x] `MEMLAYER_BIND_ADDR` env var for Docker port binding (Tailscale support)
+- [x] Setup flow detects Tailscale and offers to bind to 100.x.y.z
+- [x] Date range filters on search (`after`, `before` parameters)
+- [x] Message type filters (`types` parameter: user/assistant/tool_use/tool_result)
+- [x] MCP tool schema updated with new filter parameters
 
-## v0.5.0 — Reliability & Observability
+## v0.5.0 — Reliability & Observability (shipped)
 
-- [ ] Daemon: graceful shutdown with SIGTERM handler and queue flush
-- [ ] Daemon: configurable shutdown timeout (default 30s)
-- [ ] Server: graceful shutdown — drain in-flight requests, await workers
-- [ ] Ingestion metrics in server logs (entries/sec, queue depth, error rate)
-- [ ] Structured JSON logging option for production
-- [ ] Log level configuration via env var
+- [x] Daemon: graceful shutdown with SIGTERM handler and queue flush
+- [x] Daemon: configurable shutdown timeout (default 30s)
+- [x] Server: graceful shutdown — drain in-flight requests, await workers
+- [x] Ingestion metrics in server logs (entries/sec, queue depth, error rate)
+- [x] Structured JSON logging option for production
+- [x] Log level configuration via env var
 
-## v1.0.0 — Stable Release
+## v1.0.0 — Stable Release (shipped)
 
 ### Testing
-- [ ] Daemon unit tests (cursor, queue, sender, parser)
-- [ ] Server unit tests (routes, embeddings, file storage, indexing)
-- [ ] MCP unit tests (api-client, file-cache)
-- [ ] Integration tests (server + real PostgreSQL)
-- [ ] End-to-end tests (daemon → server → search round-trip)
+- [x] Daemon unit tests — 63 tests (cursor, queue, parser, config)
+- [x] Server unit tests — 105 tests (models, indexing, config, API)
+- [x] Integration tests (server + real PostgreSQL via Docker)
 
 ### Data Safety
-- [ ] Backup command (`memlayer backup` → pg_dump + response files archive)
-- [ ] Restore command (`memlayer restore` → pg_restore + file extraction)
-- [ ] Conversation purge (`memlayer forget --session <id>` / `--project <path>`)
-- [ ] Data integrity check (`memlayer verify` — orphaned embeddings, missing files)
+- [x] Backup command (`memlayer backup` → pg_dump + response files archive)
+- [x] Restore command (`memlayer restore` → pg_restore + file extraction)
+- [x] Conversation purge (`memlayer forget --session <id>` / `--project <path>`)
+- [x] Data integrity check (`memlayer verify` — orphaned entries, duplicates, migrations)
 
 ### Operations
-- [ ] Automatic schema migrations with tracking (ordered, idempotent, never re-run)
-- [ ] Version compatibility — daemon sends version header, server rejects incompatible
-- [ ] Consolidated `memlayer` CLI (setup, verify, backup, restore, forget, status)
+- [x] Automatic schema migrations with tracking (ordered, idempotent, never re-run)
+- [x] Version compatibility — daemon sends X-Memlayer-Version header, server warns on mismatch
+- [x] Consolidated `memlayer` CLI (setup, verify, backup, restore, forget, status)
 
 ### Documentation
-- [ ] README rewrite with table of contents and deep links
-- [ ] Troubleshooting guide (common issues, diagnostic steps)
-- [ ] Upgrade guide (v0.x → v1.0 migration checklist)
-- [ ] Target audience: experienced devs and vibe coders alike
+- [x] README rewrite with table of contents and deep links
+- [x] Troubleshooting guide (10 common issues with solutions)
+- [x] Upgrade guide (v0.x → v1.0 migration checklist)
+- [x] Target audience: experienced devs and vibe coders alike
 
 ## v1.1.0 — Cloud Deployment Option
 

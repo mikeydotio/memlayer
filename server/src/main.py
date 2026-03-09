@@ -147,7 +147,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Memlayer server stopped (shutdown took {elapsed:.1f}s)")
 
 
-app = FastAPI(title="claude-mem-server", version="0.5.0", lifespan=lifespan)
+app = FastAPI(title="claude-mem-server", version="1.0.0", lifespan=lifespan)
 
 
 # Auth middleware
@@ -164,6 +164,18 @@ async def auth_middleware(request: Request, call_next):
         expected = f"Bearer {settings.memlayer_auth_token}"
         if not hmac.compare_digest(auth, expected):
             raise HTTPException(401, "Invalid or missing auth token")
+
+    # Version compatibility check
+    client_version = request.headers.get("X-Memlayer-Version", "")
+    if client_version:
+        # Compare major.minor — warn if different
+        server_parts = "1.0.0".split(".")[:2]
+        client_parts = client_version.split(".")[:2]
+        if server_parts != client_parts:
+            logger.warning(
+                f"Version mismatch: server=1.0.0, client={client_version}. "
+                "Some features may not work correctly."
+            )
 
     return await call_next(request)
 
