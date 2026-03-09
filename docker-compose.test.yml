@@ -57,9 +57,65 @@ services:
     networks:
       - test-net
 
+  # Ollama service for embedding integration tests (slow)
+  # Activate with: docker compose -f docker-compose.test.yml --profile ollama up -d
+  test-ollama:
+    image: ollama/ollama
+    container_name: memlayer-test-ollama
+    profiles: ["ollama"]
+    volumes:
+      - test-ollama-data:/root/.ollama
+    networks:
+      - test-net
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  # Server configured with Ollama embeddings (for integration tests)
+  test-server-ollama:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: memlayer-test-server-ollama
+    profiles: ["ollama"]
+    depends_on:
+      test-db:
+        condition: service_healthy
+      test-ollama:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://memlayer:test-password@test-db:5432/memlayer_test
+      MEMLAYER_AUTH_TOKEN: test-e2e-token
+      EMBEDDING_PROVIDER: ollama
+      EMBEDDING_MODEL: nomic-embed-text
+      EMBEDDING_DIMENSIONS: "768"
+      OLLAMA_BASE_URL: http://test-ollama:11434
+      FILE_STORAGE_PATH: /data/response_files
+      RESPONSE_BUDGET_BYTES: "200000"
+      INDEX_MODE: "off"
+      LOG_LEVEL: DEBUG
+    volumes:
+      - test-response-files-ollama:/data/response_files
+      - ./db/migrations:/app/migrations:ro
+    ports:
+      - "127.0.0.1:8422:8420"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8420/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - test-net
+
 volumes:
   test-pgdata:
   test-response-files:
+  test-ollama-data:
+  test-response-files-ollama:
 
 networks:
   test-net:
