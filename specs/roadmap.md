@@ -49,10 +49,9 @@
 
 ## v0.3.1 — Embeddings & Semantic Search
 
-- [ ] OpenAI API key configuration flow
+- [ ] AI provider selection and configuration flow (OpenAI, Anthropic, Gemini)
 - [ ] Backfill utility for embedding existing entries
 - [ ] Verified hybrid (FTS + vector) search end-to-end
-- [ ] Ollama local embedding support tested and documented
 - [ ] Enhanced health check with component status (db, embeddings)
 
 ## v0.4.0 — Search & Network
@@ -101,4 +100,5 @@
 
 ## Triage / Need Scoping
 
+- [ ] Ollama local embedding support tested and documented
 - [ ] HTTP Range support for file downloads
