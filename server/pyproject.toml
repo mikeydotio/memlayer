@@ -1,6 +1,6 @@
 [project]
 name = "claude-mem-server"
-version = "1.0.1"
+version = "1.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",

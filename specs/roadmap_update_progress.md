@@ -4,65 +4,54 @@ Session recovery file. Resume from the last unchecked item.
 
 ---
 
-## v1.0.1 — Polish & Test Coverage — COMPLETE
+## v1.0.1 — Polish & Test Coverage — COMPLETE (tagged v1.0.1)
 
-All waves shipped. All 7 issues closed. Tagged v1.0.1.
-
-### Wave 1 — COMPLETE
-- [x] #4 CLAUDE.md template (ddd5463)
-- [x] #5 Debounce map leak (4ed88d3)
-- [x] #3 Response budget 200KB (cdb900d)
-- [x] #2 File cache eviction (d470d6a)
-
-### Wave 2 — COMPLETE
-- [x] #29 Response analytics (6843b17)
-
-### Wave 3 — COMPLETE
-- [x] #6 MCP unit tests — 15 tests (431c241)
-
-### Wave 4 — COMPLETE
-- [x] #7 E2E integration test — 9 tests, isolated docker-compose.test.yml (9b3a3e3)
-- [x] Bonus: Fixed auth middleware 500→401 bug
-
-### Release — COMPLETE
-- [x] All v1.0.1 issues closed on GitHub
-- [x] Version strings bumped: server, daemon, MCP
-- [x] Tagged v1.0.1
-
-### Test Summary
-- Daemon: 63 tests (cargo test)
-- Server: 110 tests (pytest)
-- MCP: 15 tests (vitest)
-- E2E: 9 tests (docker-compose.test.yml + e2e.sh)
-- **Total: 197 tests**
+- [x] #4 CLAUDE.md template, #5 debounce map, #3 response budget, #2 file cache
+- [x] #29 analytics, #6 MCP tests (15), #7 E2E tests (9), auth middleware fix
+- **197 tests** (63 daemon + 110 server + 15 MCP + 9 E2E)
 
 ---
 
-## v1.1.0 — Performance & Observability — NOT STARTED
+## v1.1.0 — Performance & Observability — COMPLETE (tagged v1.1.0)
 
-### Dependency Graph
-```
-Wave 1 (parallel, no deps):
-  #8   Batch INSERT (executemany + fallback)
-  #9   Embedding progress endpoint
-  #10  Embedding progress in health endpoint
-  #27  Ollama integration tests (real Docker Compose + nomic-embed-text)
+- [x] #8 Batch INSERT: unnest-based batch + one-at-a-time fallback (28331cb)
+- [x] #9 Embedding progress endpoint: GET /api/embeddings/status (28331cb)
+- [x] #10 Embedding progress in /health (28331cb)
+- [x] #28 Line-range endpoint: GET /api/files/{id}/lines?start=N&end=M (28331cb)
+- [x] #30 Request pattern analytics: file download vs line-range tracking (28331cb)
+- [x] #27 Ollama integration tests: real Ollama in Docker Compose, nomic-embed-text (91e45ba)
 
-Wave 2 (depends on nothing, but logically after file endpoints exist):
-  #28  Line-range endpoint (GET /api/files/{id}/lines)
-  #30  Request pattern analytics
+### Release
+- [x] All v1.1.0 issues closed on GitHub
+- [x] Version strings bumped
+- [x] Tagged v1.1.0
 
-Wave 3 (depends on all above):
-  Run full test suite, tag v1.1.0
-```
+---
+
+## v1.2.0 — Server Web UI & Cloud Deployment — NOT STARTED
 
 ### Issues
-- [ ] #8 Batch INSERT for ingest (executemany + one-at-a-time fallback)
-- [ ] #9 Embedding progress endpoint (GET /api/embeddings/status)
-- [ ] #10 Embedding progress in health endpoint
-- [ ] #27 Ollama integration tests (real Ollama in Docker Compose test stack)
-- [ ] #28 Line-range endpoint (GET /api/files/{id}/lines?start=N&end=M)
-- [ ] #30 Request pattern analytics (line-range vs file download)
+- [ ] #31 Server web UI (setup wizard, config, dashboard, analytics)
+- [ ] #13 DigitalOcean guided cloud setup (setup_cloud.sh)
+- [ ] #32 Generic VPS setup documentation
+
+---
+
+## v1.3.0 — Public Website & Launch — NOT STARTED
+
+### Issues
+- [ ] #21 Astro site scaffolding + Cloudflare Pages deployment
+- [ ] #33 Download page with dual-path options
+- [ ] #34 Cloud onboarding tutorial sub-pages
+
+---
+
+## v1.4.0 — Multi-Tenancy & Hosted Service — NOT STARTED
+
+### Issues
+- [ ] #15 GitHub OAuth, #16 API keys, #17 tenant filtering, #18 rate limiting
+- [ ] #19 GDPR, #20 background job queue, #22 Stripe, #23 dashboard
+- [ ] #24 one-liner install, #25 privacy policy, #26 status page, #35 hosted model
 
 ---
 
@@ -70,9 +59,6 @@ Wave 3 (depends on all above):
 
 | Hash | Issue | Description | Pushed |
 |------|-------|-------------|--------|
-| a125195 | — | Roadmap rewrite from interview | Yes |
-| 9ec2826 | — | Verification complete | Yes |
-| 1846c65 | — | Rename progress file | Yes |
 | ddd5463 | #4 | CLAUDE.md template: add read_memory_file docs | Yes |
 | 4ed88d3 | #5 | Debounce map: prune stale entries every 60s | Yes |
 | cdb900d | #3 | 200KB response budget with file-based overflow | Yes |
@@ -80,3 +66,6 @@ Wave 3 (depends on all above):
 | 6843b17 | #29 | Server-side response size analytics | Yes |
 | 431c241 | #6 | MCP unit tests: file-cache + api-client (15 tests) | Yes |
 | 9b3a3e3 | #7 | E2E test + auth middleware fix (9 tests) | Yes |
+| 763c4c4 | — | v1.0.1 release: version bump + tag | Yes |
+| 28331cb | #8,#9,#10,#28,#30 | Batch INSERT, embedding progress, line-range, analytics | Yes |
+| 91e45ba | #27 | Ollama integration tests | Yes |
