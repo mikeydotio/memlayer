@@ -129,6 +129,24 @@ fi
 
 success "Server is healthy"
 
+# ── Detect Tailscale ────────────────────────────────────────────────
+if command -v tailscale &>/dev/null; then
+    ts_ip=$(tailscale ip -4 2>/dev/null || true)
+    if [[ -n "$ts_ip" ]]; then
+        info "Tailscale detected (IP: $ts_ip)"
+        if confirm "Bind server to Tailscale only? (recommended for security)" "n"; then
+            # Update .env
+            if grep -q '^MEMLAYER_BIND_ADDR=' .env; then
+                sed -i "s/^MEMLAYER_BIND_ADDR=.*/MEMLAYER_BIND_ADDR=$ts_ip/" .env
+            else
+                echo "MEMLAYER_BIND_ADDR=$ts_ip" >> .env
+            fi
+            success "Server will bind to $ts_ip on next restart"
+            info "Run 'docker compose up -d' to apply"
+        fi
+    fi
+fi
+
 # ── Step 5: Summary ─────────────────────────────────────────────────
 step 5 $TOTAL_STEPS "Setup complete"
 

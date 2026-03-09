@@ -14,7 +14,7 @@ const fileCache = new FileCache();
 
 const server = new McpServer({
   name: "claude-mem-mcp",
-  version: "0.3.1",
+  version: "0.4.0",
 });
 
 function formatLargeResponseNotice(ref: LargeResponseRef): string {
@@ -51,14 +51,35 @@ server.tool(
       .max(50)
       .default(10)
       .describe("Maximum number of results to return"),
+    after: z
+      .string()
+      .datetime()
+      .optional()
+      .describe(
+        "Filter to entries after this ISO 8601 timestamp (e.g., '2025-01-01T00:00:00Z')",
+      ),
+    before: z
+      .string()
+      .datetime()
+      .optional()
+      .describe("Filter to entries before this ISO 8601 timestamp"),
+    types: z
+      .array(
+        z.enum(["user", "assistant", "tool_use", "tool_result"]),
+      )
+      .optional()
+      .describe("Filter by message content types"),
   },
-  async ({ query, session_id, project_path, limit }) => {
+  async ({ query, session_id, project_path, limit, after, before, types }) => {
     try {
       const results = await client.search({
         query,
         session_id,
         project_path,
         limit,
+        after,
+        before,
+        types,
       });
 
       if (results.results.length === 0) {
@@ -120,10 +141,16 @@ server.tool(
       .max(500)
       .default(200)
       .describe("Max entries to return"),
+    types: z
+      .array(
+        z.enum(["user", "assistant", "tool_use", "tool_result"]),
+      )
+      .optional()
+      .describe("Filter by message content types"),
   },
-  async ({ session_id, limit }) => {
+  async ({ session_id, limit, types }) => {
     try {
-      const summary = await client.getSessionSummary(session_id, limit);
+      const summary = await client.getSessionSummary(session_id, limit, types);
 
       if (!summary || summary.messages.length === 0) {
         return {

@@ -83,6 +83,9 @@ export class MemlayerClient {
     session_id?: string;
     project_path?: string;
     limit: number;
+    after?: string;
+    before?: string;
+    types?: string[];
   }): Promise<SearchResponse> {
     const resp = await this.fetchWithTimeout(`${this.baseUrl}/search`, {
       method: "POST",
@@ -98,11 +101,15 @@ export class MemlayerClient {
   async getSessionSummary(
     sessionId: string,
     limit: number = 200,
+    types?: string[],
   ): Promise<SessionSummary> {
-    const resp = await this.fetchWithTimeout(
-      `${this.baseUrl}/sessions/${sessionId}/summary?limit=${limit}`,
-      { headers: this.headers() },
-    );
+    let url = `${this.baseUrl}/sessions/${sessionId}/summary?limit=${limit}`;
+    if (types && types.length > 0) {
+      url += `&types=${types.join(",")}`;
+    }
+    const resp = await this.fetchWithTimeout(url, {
+      headers: this.headers(),
+    });
     if (!resp.ok) {
       throw new Error(
         `Session summary failed: ${resp.status} ${await resp.text()}`,

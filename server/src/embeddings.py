@@ -164,8 +164,12 @@ async def embedding_worker():
 
 
 async def embed_query(text: str) -> list[float] | None:
-    """Generate embedding for a search query. Returns None if no provider."""
+    """Generate embedding for a search query. Returns None if no provider or on error."""
     if not _embedder:
         return None
-    embeddings = await _embedder.embed([text])
-    return embeddings[0]
+    try:
+        embeddings = await _embedder.embed([text])
+        return embeddings[0]
+    except Exception:
+        logger.warning("Failed to generate query embedding, falling back to FTS-only")
+        return None

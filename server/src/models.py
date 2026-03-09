@@ -33,6 +33,9 @@ class SearchRequest(BaseModel):
     query: str
     session_id: str | None = None
     project_path: str | None = None
+    after: datetime | None = Field(default=None, description="Filter entries after this timestamp")
+    before: datetime | None = Field(default=None, description="Filter entries before this timestamp")
+    types: list[str] | None = Field(default=None, description="Filter by content_type: user, assistant, tool_use, tool_result")
     limit: int = Field(default=20, ge=1, le=100)
 
 

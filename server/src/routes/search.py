@@ -70,12 +70,15 @@ async def search(req: SearchRequest):
         # Full hybrid search
         embedding_bytes = np.array(query_embedding, dtype=np.float32).tobytes()
         rows = await pool.fetch(
-            "SELECT * FROM hybrid_search($1, $2, $3, $4, $5)",
+            "SELECT * FROM hybrid_search($1, $2, $3, $4, $5, 1.0, 1.0, $6, $7, $8)",
             req.query,
             embedding_bytes,
             req.session_id,
             req.project_path,
             req.limit,
+            req.after,
+            req.before,
+            req.types,
         )
     else:
         # FTS-only fallback
@@ -94,6 +97,9 @@ async def search(req: SearchRequest):
             WHERE me.fts @@ websearch_to_tsquery('english', $1)
                 AND ($2::varchar IS NULL OR me.session_id = $2)
                 AND ($3::varchar IS NULL OR cs.project_path = $3)
+                AND ($5::timestamptz IS NULL OR me.created_at >= $5)
+                AND ($6::timestamptz IS NULL OR me.created_at <= $6)
+                AND ($7::varchar[] IS NULL OR me.message_type = ANY($7))
             ORDER BY ts_rank_cd(me.fts, websearch_to_tsquery('english', $1)) DESC
             LIMIT $4
             """,
@@ -101,6 +107,9 @@ async def search(req: SearchRequest):
             req.session_id,
             req.project_path,
             req.limit,
+            req.after,
+            req.before,
+            req.types,
         )
 
     search_ms = (time.monotonic() - t1) * 1000
@@ -144,7 +153,11 @@ async def search(req: SearchRequest):
 
 
 @router.get("/sessions/{session_id}/summary", response_model=SessionSummary)
-async def session_summary(session_id: str, limit: int = Query(default=200, ge=1, le=1000)):
+async def session_summary(
+    session_id: str,
+    limit: int = Query(default=200, ge=1, le=1000),
+    types: str | None = Query(default=None, description="Comma-separated content types to filter"),
+):
     pool = get_pool()
 
     session = await pool.fetchrow(
@@ -154,11 +167,29 @@ async def session_summary(session_id: str, limit: int = Query(default=200, ge=1,
     if not session:
         raise HTTPException(404, f"Session {session_id} not found")
 
-    rows = await pool.fetch(
-        "SELECT * FROM get_session_entries($1, $2)",
-        session_id,
-        limit,
-    )
+    type_list = [t.strip() for t in types.split(",") if t.strip()] if types else None
+
+    if type_list:
+        rows = await pool.fetch(
+            """
+            SELECT me.id, me.message_type, me.content_type, me.raw_content,
+                   me.tool_name, me.created_at
+            FROM memory_entries me
+            WHERE me.session_id = $1
+                AND me.message_type = ANY($3::varchar[])
+            ORDER BY me.created_at ASC
+            LIMIT $2
+            """,
+            session_id,
+            limit,
+            type_list,
+        )
+    else:
+        rows = await pool.fetch(
+            "SELECT * FROM get_session_entries($1, $2)",
+            session_id,
+            limit,
+        )
 
     messages = [
         SessionMessage(
