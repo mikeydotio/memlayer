@@ -354,8 +354,7 @@ Set these in your `.env` file (used by Docker Compose):
 | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | Ollama API URL (when using Ollama embeddings) |
 | `FILE_STORAGE_SOFT_LIMIT` | `0` (unlimited) | Soft limit in bytes for response file storage; background eviction starts here |
 | `FILE_STORAGE_HARD_LIMIT` | `0` (unlimited) | Hard limit in bytes for response file storage; synchronous eviction on write |
-| `LARGE_RESPONSE_THRESHOLD_SEARCH` | `5000` | Character count before search responses are offloaded to files |
-| `LARGE_RESPONSE_THRESHOLD_SESSION` | `5000` | Character count before session summaries are offloaded to files |
+| `RESPONSE_BUDGET_BYTES` | `200000` | Response size budget in bytes (200KB); responses exceeding this use file-based flow |
 | `EVICTION_INTERVAL_SECS` | `60` | Seconds between background eviction checks |
 | `INDEX_MODE` | `off` | Structural indexing for large files: `off`, `hybrid`, or `llm-only` |
 | `INDEX_LLM_PROVIDER` | *(empty)* | LLM provider for indexing: `openai`, `anthropic`, or `ollama` |

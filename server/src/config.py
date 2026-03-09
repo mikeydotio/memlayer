@@ -13,8 +13,7 @@ class Settings(BaseSettings):
     embedding_interval_secs: float = 5.0
 
     # Large response settings
-    large_response_threshold_search: int = 5000  # chars
-    large_response_threshold_session: int = 5000  # chars
+    response_budget_bytes: int = 200000  # 200KB; responses exceeding this use file-based flow
     file_storage_path: str = "/data/response_files"
     file_storage_soft_limit: int = 0  # bytes, 0 = unlimited
     file_storage_hard_limit: int = 0  # bytes, 0 = unlimited

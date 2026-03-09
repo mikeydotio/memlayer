@@ -37,11 +37,10 @@ class TestSettingsDefaults:
         s = Settings()
         assert s.embedding_model == "text-embedding-3-small"
 
-    def test_default_large_response_thresholds(self):
-        """Default thresholds for large response offloading."""
+    def test_default_response_budget(self):
+        """Default response budget should be 200KB."""
         s = Settings()
-        assert s.large_response_threshold_search == 5000
-        assert s.large_response_threshold_session == 5000
+        assert s.response_budget_bytes == 200000
 
     def test_default_file_storage_limits(self):
         """Default file storage limits should be 0 (unlimited)."""

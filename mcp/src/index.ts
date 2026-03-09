@@ -19,11 +19,17 @@ const server = new McpServer({
 
 function formatLargeResponseNotice(ref: LargeResponseRef): string {
   return [
-    `\n\n---\n**Large response offloaded to file** (${ref.size_bytes} bytes, type: ${ref.content_type})`,
-    `**File ID:** ${ref.file_id}`,
-    `\n**Summary:**\n${ref.summary}`,
-    `\n**Structural Index:**\n${ref.index}`,
-    `\nUse \`read_memory_file\` with file_id="${ref.file_id}" and line ranges from the index above to read specific sections.`,
+    `The full response was too large to return inline (${ref.size_bytes} bytes, type: ${ref.content_type}). It has been saved to a file.`,
+    ``,
+    `**File ID:** \`${ref.file_id}\``,
+    ``,
+    `**Summary:**`,
+    ref.summary,
+    ``,
+    `**Structural Index (line ranges):**`,
+    ref.index,
+    ``,
+    `Use \`read_memory_file\` with file_id="${ref.file_id}" and the line ranges above to read the sections you need.`,
   ].join("\n");
 }
 
@@ -90,31 +96,28 @@ server.tool(
         };
       }
 
-      const formatted = results.results
-        .map((r, i) => {
-          const header = `### Result ${i + 1} (score: ${r.rrf_score.toFixed(3)})`;
-          const meta = `**Session:** ${r.session_id} | **Project:** ${r.project_path || "unknown"} | **Date:** ${r.created_at} | **Type:** ${r.content_type}${r.tool_name ? ` (${r.tool_name})` : ""}`;
-          const content =
-            r.raw_content.length > 50000
-              ? r.raw_content.substring(0, 50000) + "...[truncated]"
-              : r.raw_content;
-          return `${header}\n${meta}\n\n${content}`;
-        })
-        .join("\n\n---\n\n");
-
-      let text = `Found ${results.total} results (showing top ${results.results.length}, search: ${results.search_ms.toFixed(0)}ms):\n\n${formatted}`;
-
-      // Handle large response offloading
+      // Large response: server cleared inline results and provided file reference
       if (results.large_response) {
         const ref = results.large_response;
         await fileCache.ensureCached(ref.file_id, () =>
           client.downloadFile(ref.file_id),
         );
-        text += formatLargeResponseNotice(ref);
+        return {
+          content: [{ type: "text" as const, text: formatLargeResponseNotice(ref) }],
+        };
       }
 
+      // Inline response: all results fit within the server's response budget
+      const formatted = results.results
+        .map((r, i) => {
+          const header = `### Result ${i + 1} (score: ${r.rrf_score.toFixed(3)})`;
+          const meta = `**Session:** ${r.session_id} | **Project:** ${r.project_path || "unknown"} | **Date:** ${r.created_at} | **Type:** ${r.content_type}${r.tool_name ? ` (${r.tool_name})` : ""}`;
+          return `${header}\n${meta}\n\n${r.raw_content}`;
+        })
+        .join("\n\n---\n\n");
+
       return {
-        content: [{ type: "text" as const, text }],
+        content: [{ type: "text" as const, text: `Found ${results.total} results (showing top ${results.results.length}, search: ${results.search_ms.toFixed(0)}ms):\n\n${formatted}` }],
       };
     } catch (e) {
       return {
@@ -163,6 +166,19 @@ server.tool(
         };
       }
 
+      // Large response: server cleared inline messages and provided file reference
+      if (summary.large_response) {
+        const ref = summary.large_response;
+        await fileCache.ensureCached(ref.file_id, () =>
+          client.downloadFile(ref.file_id),
+        );
+        const header = `## Session: ${summary.session_id}\n**Project:** ${summary.project_path || "unknown"}\n**Messages:** ${summary.message_count}`;
+        return {
+          content: [{ type: "text" as const, text: `${header}\n\n${formatLargeResponseNotice(ref)}` }],
+        };
+      }
+
+      // Inline response: all messages fit within the server's response budget
       const header = `## Session: ${summary.session_id}\n**Project:** ${summary.project_path || "unknown"}\n**Slug:** ${summary.slug || "none"}\n**Started:** ${summary.created_at}\n**Messages:** ${summary.message_count}`;
 
       const messages = summary.messages
@@ -171,27 +187,12 @@ server.tool(
           const typeTag =
             m.content_type !== "text" ? ` [${m.content_type}]` : "";
           const toolTag = m.tool_name ? ` (${m.tool_name})` : "";
-          const content =
-            m.raw_content.length > 50000
-              ? m.raw_content.substring(0, 50000) + "...[truncated]"
-              : m.raw_content;
-          return `**[${role}${typeTag}${toolTag}]** (${m.created_at})\n${content}`;
+          return `**[${role}${typeTag}${toolTag}]** (${m.created_at})\n${m.raw_content}`;
         })
         .join("\n\n");
 
-      let text = `${header}\n\n${messages}`;
-
-      // Handle large response offloading
-      if (summary.large_response) {
-        const ref = summary.large_response;
-        await fileCache.ensureCached(ref.file_id, () =>
-          client.downloadFile(ref.file_id),
-        );
-        text += formatLargeResponseNotice(ref);
-      }
-
       return {
-        content: [{ type: "text" as const, text }],
+        content: [{ type: "text" as const, text: `${header}\n\n${messages}` }],
       };
     } catch (e) {
       return {

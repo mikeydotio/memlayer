@@ -44,6 +44,7 @@ cd daemon && cargo test
 | `INDEX_MODE` | server | Indexing mode: `off`, `hybrid`, `llm-only` |
 | `INDEX_LLM_PROVIDER` | server | LLM for indexing: `openai`, `anthropic`, `ollama` |
 | `ANTHROPIC_API_KEY` | server | For Anthropic-based indexing |
+| `RESPONSE_BUDGET_BYTES` | server | Response size budget (bytes, default 200000); over-budget responses use file-based flow |
 | `FILE_STORAGE_SOFT_LIMIT` | server | Soft limit for response files (bytes, 0=unlimited) |
 | `FILE_STORAGE_HARD_LIMIT` | server | Hard limit for response files (bytes, 0=unlimited) |
 

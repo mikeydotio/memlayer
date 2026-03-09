@@ -25,13 +25,19 @@ router = APIRouter()
 
 async def _maybe_offload(
     response_json: str,
-    threshold: int,
     source_endpoint: str,
     source_params: dict | None = None,
 ) -> LargeResponseRef | None:
-    """If response exceeds threshold, store to file and return a LargeResponseRef."""
-    if len(response_json) <= threshold:
+    """If response exceeds the budget (bytes), store to file and return a LargeResponseRef."""
+    response_bytes = len(response_json.encode("utf-8"))
+    if response_bytes <= settings.response_budget_bytes:
         return None
+
+    logger.info(
+        "Response exceeds budget (%d bytes > %d), offloading to file",
+        response_bytes,
+        settings.response_budget_bytes,
+    )
 
     summary, structural_index, content_type = await generate_index(response_json)
 
@@ -142,12 +148,12 @@ async def search(req: SearchRequest):
     response_json = response.model_dump_json()
     large_ref = await _maybe_offload(
         response_json,
-        settings.large_response_threshold_search,
         source_endpoint="/api/search",
         source_params={"query": req.query, "session_id": req.session_id, "project_path": req.project_path},
     )
     if large_ref:
         response.large_response = large_ref
+        response.results = []  # Clear inline results — file has the full data
 
     return response
 
@@ -216,11 +222,11 @@ async def session_summary(
     response_json = response.model_dump_json()
     large_ref = await _maybe_offload(
         response_json,
-        settings.large_response_threshold_session,
         source_endpoint=f"/api/sessions/{session_id}/summary",
         source_params={"session_id": session_id, "limit": limit},
     )
     if large_ref:
         response.large_response = large_ref
+        response.messages = []  # Clear inline messages — file has the full data
 
     return response
