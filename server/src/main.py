@@ -206,4 +206,10 @@ async def health():
     else:
         status["components"]["embeddings"] = "disabled (FTS-only)"
 
+    # Response analytics
+    from .analytics import response_analytics
+    analytics = response_analytics.get_stats()
+    if analytics:
+        status["response_analytics"] = analytics
+
     return status

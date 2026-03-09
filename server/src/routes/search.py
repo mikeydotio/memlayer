@@ -15,6 +15,7 @@ from ..models import (
     SessionSummary,
     SessionMessage,
 )
+from ..analytics import response_analytics
 from ..embeddings import embed_query
 from ..file_storage import store_response_file
 from ..indexing import generate_index
@@ -146,6 +147,7 @@ async def search(req: SearchRequest):
 
     # Check for large response offloading
     response_json = response.model_dump_json()
+    response_bytes = len(response_json.encode("utf-8"))
     large_ref = await _maybe_offload(
         response_json,
         source_endpoint="/api/search",
@@ -154,6 +156,8 @@ async def search(req: SearchRequest):
     if large_ref:
         response.large_response = large_ref
         response.results = []  # Clear inline results — file has the full data
+
+    response_analytics.record("/api/search", response_bytes, offloaded=large_ref is not None)
 
     return response
 
@@ -220,6 +224,7 @@ async def session_summary(
 
     # Check for large response offloading
     response_json = response.model_dump_json()
+    response_bytes = len(response_json.encode("utf-8"))
     large_ref = await _maybe_offload(
         response_json,
         source_endpoint=f"/api/sessions/{session_id}/summary",
@@ -228,5 +233,7 @@ async def session_summary(
     if large_ref:
         response.large_response = large_ref
         response.messages = []  # Clear inline messages — file has the full data
+
+    response_analytics.record("/api/sessions/summary", response_bytes, offloaded=large_ref is not None)
 
     return response
