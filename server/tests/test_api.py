@@ -137,7 +137,8 @@ class TestIngestEndpoint:
 
     def test_ingest_valid_entry(self, client, auth_headers, mock_pool, sample_entry):
         """Ingest with a valid entry should succeed."""
-        mock_pool.fetchrow.return_value = {"id": 1}
+        # Batch INSERT uses pool.fetch() and returns rows with id
+        mock_pool.fetch.return_value = [{"id": 1}]
         resp = client.post(
             "/api/ingest",
             json={"entries": [sample_entry]},
@@ -149,8 +150,9 @@ class TestIngestEndpoint:
         assert data["duplicates"] == 0
 
     def test_ingest_duplicate_entry(self, client, auth_headers, mock_pool, sample_entry):
-        """Duplicate entry (ON CONFLICT DO NOTHING returns None) should count as duplicate."""
-        mock_pool.fetchrow.return_value = None
+        """Duplicate entry (ON CONFLICT DO NOTHING returns no rows) should count as duplicate."""
+        # Batch INSERT returns empty list when all entries are duplicates
+        mock_pool.fetch.return_value = []
         resp = client.post(
             "/api/ingest",
             json={"entries": [sample_entry]},

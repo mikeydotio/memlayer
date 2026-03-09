@@ -86,6 +86,24 @@ async def enqueue_ids(ids: list[int]):
         _queue.extend(ids)
 
 
+async def get_embedding_status() -> dict:
+    """Return embedding progress stats."""
+    pool = get_pool()
+    total = await pool.fetchval("SELECT COUNT(*) FROM memory_entries")
+    embedded = await pool.fetchval("SELECT COUNT(*) FROM memory_entries WHERE embedding IS NOT NULL")
+    pending = total - embedded
+    queue_depth = len(_queue)
+    return {
+        "total_entries": total,
+        "embedded": embedded,
+        "pending": pending,
+        "queue_depth": queue_depth,
+        "provider": settings.embedding_provider if _embedder else None,
+        "model": settings.embedding_model if _embedder else None,
+        "enabled": _embedder is not None,
+    }
+
+
 async def embedding_worker():
     """Background task that processes entries with NULL embeddings."""
     if not _embedder:

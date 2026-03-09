@@ -16,6 +16,7 @@ from .eviction import eviction_worker
 from .routes.ingest import router as ingest_router
 from .routes.search import router as search_router
 from .routes.files import router as files_router
+from .routes.embeddings import router as embeddings_router
 
 
 class JsonFormatter(logging.Formatter):
@@ -184,6 +185,7 @@ async def auth_middleware(request: Request, call_next):
 app.include_router(ingest_router, prefix="/api")
 app.include_router(search_router, prefix="/api")
 app.include_router(files_router, prefix="/api")
+app.include_router(embeddings_router, prefix="/api")
 
 
 @app.get("/health")
@@ -201,9 +203,13 @@ async def health():
         status["status"] = "degraded"
 
     # Check embeddings
-    from .embeddings import _embedder
+    from .embeddings import _embedder, get_embedding_status
     if _embedder:
         status["components"]["embeddings"] = f"ok ({settings.embedding_provider})"
+        try:
+            status["embedding_progress"] = await get_embedding_status()
+        except Exception:
+            status["embedding_progress"] = {"error": "failed to fetch stats"}
     else:
         status["components"]["embeddings"] = "disabled (FTS-only)"
 
