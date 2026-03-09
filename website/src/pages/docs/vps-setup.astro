@@ -1,0 +1,50 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+<Base title="Generic VPS Setup" description="Deploy Memlayer on any VPS with Docker">
+<main class="container" style="padding-top:48px;padding-bottom:60px;max-width:700px">
+  <h1 style="font-size:32px">Generic VPS Setup</h1>
+  <p style="color:var(--text-dim)">Docker Compose instructions for any Linux VPS.</p>
+
+  <h2>Quick Start</h2>
+  <pre><code># Clone and configure
+git clone https://github.com/mikeydotio/memlayer.git
+cd memlayer
+cp .env.example .env
+
+# Edit .env with your credentials
+# Set POSTGRES_PASSWORD, MEMLAYER_AUTH_TOKEN, and optionally OPENAI_API_KEY
+
+# Start
+docker compose up -d
+
+# Verify
+curl http://localhost:8420/health</code></pre>
+
+  <h2>Environment Variables</h2>
+  <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border)">
+          <th style="text-align:left;padding:8px 12px;color:var(--text-dim)">Variable</th>
+          <th style="text-align:left;padding:8px 12px;color:var(--text-dim)">Required</th>
+          <th style="text-align:left;padding:8px 12px;color:var(--text-dim)">Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 12px"><code>POSTGRES_PASSWORD</code></td><td style="padding:8px 12px">Yes</td><td style="padding:8px 12px;color:var(--text-dim)">Database password</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 12px"><code>MEMLAYER_AUTH_TOKEN</code></td><td style="padding:8px 12px">Yes</td><td style="padding:8px 12px;color:var(--text-dim)">API bearer token</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 12px"><code>OPENAI_API_KEY</code></td><td style="padding:8px 12px">No</td><td style="padding:8px 12px;color:var(--text-dim)">Enables vector embeddings</td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 12px"><code>EMBEDDING_PROVIDER</code></td><td style="padding:8px 12px">No</td><td style="padding:8px 12px;color:var(--text-dim)"><code>openai</code> or <code>ollama</code></td></tr>
+        <tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 12px"><code>MEMLAYER_BIND_ADDR</code></td><td style="padding:8px 12px">No</td><td style="padding:8px 12px;color:var(--text-dim)">Bind address (default: 0.0.0.0)</td></tr>
+        <tr><td style="padding:8px 12px"><code>RESPONSE_BUDGET_BYTES</code></td><td style="padding:8px 12px">No</td><td style="padding:8px 12px;color:var(--text-dim)">Response size budget (default: 200000)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="margin-top:16px">For the full list, see the <a href="https://github.com/mikeydotio/memlayer#server-variables">README</a>.</p>
+
+  <h2>Client Setup</h2>
+  <pre><code>curl -fsSL https://raw.githubusercontent.com/mikeydotio/memlayer/main/install.sh | bash</code></pre>
+  <p>Enter <code>http://YOUR_VPS_IP:8420/api</code> and your auth token when prompted.</p>
+</main>
+</Base>

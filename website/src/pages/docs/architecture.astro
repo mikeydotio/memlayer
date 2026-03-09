@@ -1,0 +1,51 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+<Base title="Architecture" description="How Memlayer works — daemon, server, database, and MCP">
+<main class="container" style="padding-top:48px;padding-bottom:60px;max-width:700px">
+  <h1 style="font-size:32px">Architecture</h1>
+  <p style="color:var(--text-dim)">Four components working together to give Claude persistent memory.</p>
+
+  <h2>Components</h2>
+
+  <h3>Daemon (Rust)</h3>
+  <p>Native binary that watches <code>~/.claude/projects/**/*.jsonl</code> for new conversation data. Parses JSONL entries, batches them, and sends to the server via HTTP. Includes an offline SQLite queue for resilience — if the server is down, entries are queued and drained on reconnect.</p>
+
+  <h3>Server (Python/FastAPI)</h3>
+  <p>REST API that ingests entries, generates embeddings, and serves hybrid search. Handles large response offloading, structural indexing, and file storage. Runs schema migrations automatically on startup.</p>
+
+  <h3>Database (PostgreSQL + pgvector)</h3>
+  <p>PostgreSQL 16 with the pgvector extension for vector similarity search. Uses GIN indexes for full-text search, HNSW indexes for vector search, and a custom RRF (Reciprocal Rank Fusion) stored function to combine both ranking signals.</p>
+
+  <h3>MCP Server (TypeScript)</h3>
+  <p>Stdio-based MCP server that Claude Code spawns. Exposes three tools:</p>
+  <ul style="color:var(--text-dim);padding-left:20px;margin-bottom:24px">
+    <li><code>search_memory</code> — hybrid search across all conversations</li>
+    <li><code>get_session_summary</code> — full chronological session history</li>
+    <li><code>read_memory_file</code> — read line ranges from large response files</li>
+  </ul>
+
+  <h2>Data Flow</h2>
+  <pre><code>Claude Code → JSONL files → Daemon → Server API → PostgreSQL
+                                                ↕
+Claude Code ← MCP Server ← Server API ← PostgreSQL + pgvector</code></pre>
+
+  <h2>Search Pipeline</h2>
+  <ol style="color:var(--text-dim);padding-left:20px">
+    <li>Query arrives via MCP <code>search_memory</code> tool</li>
+    <li>Server generates query embedding (OpenAI or Ollama)</li>
+    <li>PostgreSQL <code>hybrid_search()</code> function runs both FTS and vector search</li>
+    <li>RRF combines rankings with configurable weights</li>
+    <li>If response &gt; 200KB: store to file, return summary + structural index</li>
+    <li>MCP formats results and returns to Claude</li>
+  </ol>
+
+  <h2>Key Design Decisions</h2>
+  <ul style="color:var(--text-dim);padding-left:20px">
+    <li><strong>FTS-first:</strong> Works immediately without an embedding API key. Embeddings enhance but aren't required.</li>
+    <li><strong>Idempotent ingestion:</strong> SHA-256 payload hashes with UNIQUE constraint prevent duplicate entries.</li>
+    <li><strong>Cursor-based watching:</strong> Byte offsets tracked per file — daemon can restart without re-processing.</li>
+    <li><strong>200KB response budget:</strong> Large responses automatically offloaded to files with structural indexes for selective retrieval.</li>
+  </ul>
+</main>
+</Base>

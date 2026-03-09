@@ -1,0 +1,62 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base title="Memlayer" description="Persistent, searchable conversation memory for Claude Code. Self-hosted, open source.">
+<main>
+  <section style="text-align:center;padding:80px 24px 60px">
+    <div class="container">
+      <h1>Give Claude a<br><span style="color:var(--accent)">memory</span></h1>
+      <p style="font-size:18px;color:var(--text-dim);max-width:560px;margin:20px auto 32px">
+        Persistent, searchable conversation memory for Claude Code.
+        Every conversation indexed. Every decision searchable. Self-hosted and open source.
+      </p>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+        <a href="/download" class="btn">Get Started</a>
+        <a href="https://github.com/mikeydotio/memlayer" class="btn btn-outline">View on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding:40px 24px 60px">
+    <div class="container">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:24px">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px">
+          <h3 style="margin-top:0;color:var(--accent)">Hybrid Search</h3>
+          <p style="color:var(--text-dim);margin-bottom:0">Full-text + vector search with RRF ranking. Find any conversation, any decision, instantly.</p>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px">
+          <h3 style="margin-top:0;color:var(--accent)">Self-Hosted</h3>
+          <p style="color:var(--text-dim);margin-bottom:0">Your conversations stay on your infrastructure. PostgreSQL + pgvector. Docker Compose one-liner.</p>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px">
+          <h3 style="margin-top:0;color:var(--accent)">Zero Config</h3>
+          <p style="color:var(--text-dim);margin-bottom:0">Background daemon watches Claude Code conversations. MCP integration is automatic. Just install and go.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding:40px 24px">
+    <div class="container">
+      <h2 style="text-align:center;margin-top:0">How it works</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:24px;text-align:center;margin-top:24px">
+        <div>
+          <div style="font-size:32px;margin-bottom:8px;color:var(--accent)">1</div>
+          <p style="font-weight:600">Daemon watches</p>
+          <p style="color:var(--text-dim);font-size:14px">Tails Claude Code JSONL files, parses conversations, sends to server</p>
+        </div>
+        <div>
+          <div style="font-size:32px;margin-bottom:8px;color:var(--accent)">2</div>
+          <p style="font-weight:600">Server indexes</p>
+          <p style="color:var(--text-dim);font-size:14px">Full-text search + optional vector embeddings in PostgreSQL + pgvector</p>
+        </div>
+        <div>
+          <div style="font-size:32px;margin-bottom:8px;color:var(--accent)">3</div>
+          <p style="font-weight:600">Claude recalls</p>
+          <p style="color:var(--text-dim);font-size:14px">MCP tools let Claude search past conversations and reference prior decisions</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+</Base>

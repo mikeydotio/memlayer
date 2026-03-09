@@ -1,0 +1,59 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+<Base title="DigitalOcean Setup" description="Deploy Memlayer on a DigitalOcean droplet step by step">
+<main class="container" style="padding-top:48px;padding-bottom:60px;max-width:700px">
+  <h1 style="font-size:32px">DigitalOcean Setup</h1>
+  <p style="color:var(--text-dim)">Deploy Memlayer on a DigitalOcean droplet with the guided setup script.</p>
+
+  <h2>1. Create a Droplet</h2>
+  <p>Create a droplet with these specs:</p>
+  <ul style="color:var(--text-dim);padding-left:20px;margin-bottom:24px">
+    <li><strong>Image:</strong> Ubuntu 24.04 LTS</li>
+    <li><strong>Size:</strong> Basic, 1 GB RAM / 1 vCPU ($6/mo) — sufficient for personal use</li>
+    <li><strong>Region:</strong> Closest to you</li>
+    <li><strong>Authentication:</strong> SSH key recommended</li>
+  </ul>
+
+  <h2>2. Install Docker</h2>
+  <p>SSH into your droplet and install Docker:</p>
+  <pre><code>ssh root@YOUR_DROPLET_IP
+curl -fsSL https://get.docker.com | sh</code></pre>
+
+  <h2>3. Run the Setup Script</h2>
+  <pre><code>curl -fsSL https://raw.githubusercontent.com/mikeydotio/memlayer/main/scripts/setup_cloud.sh | bash</code></pre>
+  <p>The script will:</p>
+  <ul style="color:var(--text-dim);padding-left:20px;margin-bottom:24px">
+    <li>Clone the Memlayer repository</li>
+    <li>Generate secure credentials (Postgres password, auth token)</li>
+    <li>Optionally configure OpenAI for vector embeddings</li>
+    <li>Configure network binding (public, IP-only, or localhost)</li>
+    <li>Start the Docker stack and verify health</li>
+  </ul>
+
+  <h2>4. Install the Client</h2>
+  <p>On your local machine (where Claude Code runs):</p>
+  <pre><code>curl -fsSL https://raw.githubusercontent.com/mikeydotio/memlayer/main/install.sh | bash</code></pre>
+  <p>Enter the server URL and auth token shown at the end of the setup script.</p>
+
+  <h2>5. Firewall (Recommended)</h2>
+  <p>Restrict access to port 8420:</p>
+  <pre><code># Allow from specific IP only
+ufw allow from YOUR_IP to any port 8420
+ufw enable</code></pre>
+  <p>Or use DigitalOcean's cloud firewall in the control panel.</p>
+
+  <h2>6. Updating</h2>
+  <pre><code>cd memlayer
+git pull
+docker compose up -d --build</code></pre>
+
+  <h2>Troubleshooting</h2>
+  <h3>Server won't start</h3>
+  <pre><code>docker compose logs server</code></pre>
+  <h3>Can't connect from client</h3>
+  <p>Check that port 8420 is open in both ufw and DigitalOcean's cloud firewall.</p>
+  <h3>Embeddings not working</h3>
+  <p>Check your OpenAI API key is valid. The server falls back to FTS-only on API errors.</p>
+</main>
+</Base>

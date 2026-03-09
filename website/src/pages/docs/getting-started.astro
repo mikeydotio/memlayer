@@ -1,0 +1,44 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+<Base title="Getting Started" description="Install and run Memlayer in under 5 minutes">
+<main class="container" style="padding-top:48px;padding-bottom:60px;max-width:700px">
+  <h1 style="font-size:32px">Getting Started</h1>
+  <p style="color:var(--text-dim)">Self-hosted setup. Run Memlayer on your own machine in under 5 minutes.</p>
+
+  <h2>Prerequisites</h2>
+  <ul style="color:var(--text-dim);margin-bottom:24px;padding-left:20px">
+    <li>Docker and Docker Compose v2+</li>
+    <li>Git</li>
+    <li>A machine that stays on (server, NAS, or always-on laptop)</li>
+  </ul>
+
+  <h2>1. Clone and configure</h2>
+  <pre><code>git clone https://github.com/mikeydotio/memlayer.git
+cd memlayer
+cp .env.example .env</code></pre>
+  <p>Edit <code>.env</code> and set <code>POSTGRES_PASSWORD</code> and <code>MEMLAYER_AUTH_TOKEN</code> to random values. Optionally add your <code>OPENAI_API_KEY</code> for vector embeddings.</p>
+
+  <h2>2. Start the server</h2>
+  <pre><code>docker compose up -d</code></pre>
+  <p>Verify it's running:</p>
+  <pre><code>curl http://localhost:8420/health</code></pre>
+
+  <h2>3. Install the client</h2>
+  <p>On each machine where you use Claude Code:</p>
+  <pre><code>curl -fsSL https://raw.githubusercontent.com/mikeydotio/memlayer/main/install.sh | bash</code></pre>
+  <p>When prompted, enter your server URL (<code>http://YOUR_IP:8420/api</code>) and auth token.</p>
+
+  <h2>4. Verify</h2>
+  <p>Start a Claude Code session and ask:</p>
+  <pre><code>"Search my memory for recent conversations"</code></pre>
+  <p>Claude will use the <code>search_memory</code> MCP tool to query your Memlayer server.</p>
+
+  <h2>What's next?</h2>
+  <ul style="color:var(--text-dim);padding-left:20px">
+    <li>Visit <code>http://YOUR_IP:8420</code> for the web dashboard</li>
+    <li>Read the <a href="/docs/architecture">architecture overview</a></li>
+    <li>Set up <a href="https://github.com/mikeydotio/memlayer#backup--restore">backup and restore</a></li>
+  </ul>
+</main>
+</Base>
