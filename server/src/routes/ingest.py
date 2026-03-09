@@ -84,4 +84,9 @@ async def ingest(req: IngestRequest):
     if new_ids:
         await enqueue_ids(new_ids)
 
+    logger.info(
+        f"Ingest: accepted={accepted} duplicates={duplicates} errors={errors} "
+        f"sessions={len(session_map)} entries={len(req.entries)}"
+    )
+
     return IngestResponse(accepted=accepted, duplicates=duplicates, errors=errors)

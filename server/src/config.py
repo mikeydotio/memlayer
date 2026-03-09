@@ -28,5 +28,9 @@ class Settings(BaseSettings):
     index_llm_model: str = ""
     anthropic_api_key: str = ""
 
+    # Logging settings
+    log_format: str = "text"  # "text" or "json"
+    log_level: str = "INFO"
+
 
 settings = Settings()

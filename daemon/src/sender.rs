@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::sync::watch;
 use tracing::{info, warn, error};
 
 use crate::config::Config;
@@ -96,75 +97,97 @@ impl Sender {
         })
     }
 
-    pub async fn drain_queue_loop(&self) {
+    /// Attempt to send a single batch from the offline queue.
+    /// Returns true if a batch was processed (successfully or dropped), false if queue was empty.
+    async fn drain_one_batch(&self) -> bool {
+        let batch = {
+            let q = self.queue.lock().await;
+            let count = q.count();
+            if count == 0 {
+                return false;
+            }
+            info!(queued = count, "Draining offline queue");
+            match q.dequeue_batch(self.config.batch_size) {
+                Ok(b) => b,
+                Err(e) => {
+                    error!(error = %e, "Failed to dequeue batch");
+                    return false;
+                }
+            }
+        };
+
+        if batch.is_empty() {
+            return false;
+        }
+
+        let ids: Vec<i64> = batch.iter().map(|(id, _)| *id).collect();
+        let entries: Vec<ParsedEntry> = batch.into_iter().map(|(_, e)| e).collect();
+
+        let url = format!("{}/ingest", self.config.server_url);
+        let req = IngestRequest { entries };
+
+        let mut builder = self.client.post(&url).json(&req);
+        if !self.config.auth_token.is_empty() {
+            builder = builder.header("Authorization", format!("Bearer {}", self.config.auth_token));
+        }
+
+        match builder.send().await {
+            Ok(resp) if resp.status().is_success() => {
+                let q = self.queue.lock().await;
+                if let Err(e) = q.remove(&ids) {
+                    error!(error = %e, "Failed to remove drained entries");
+                }
+                info!(count = ids.len(), "Queue drained successfully");
+            }
+            Ok(resp) if resp.status().is_client_error()
+                && resp.status().as_u16() != 401
+                && resp.status().as_u16() != 413
+                && resp.status().as_u16() != 429 =>
+            {
+                // 4xx (except auth/size/rate errors): will never succeed, remove from queue
+                error!(status = %resp.status(), "Queue drain got client error (not retryable), removing entries");
+                let q = self.queue.lock().await;
+                if let Err(e) = q.remove(&ids) {
+                    error!(error = %e, "Failed to remove rejected entries from queue");
+                }
+            }
+            Ok(resp) => {
+                warn!(status = %resp.status(), "Queue drain failed with server error");
+            }
+            Err(e) => {
+                warn!(error = %e, "Queue drain failed");
+            }
+        }
+
+        true
+    }
+
+    pub async fn drain_queue_loop(&self, mut shutdown_rx: watch::Receiver<bool>) {
         let mut delay_secs = 30u64;
 
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(delay_secs)).await;
-
-            let batch = {
-                let q = self.queue.lock().await;
-                let count = q.count();
-                if count == 0 {
-                    delay_secs = 30;
-                    continue;
-                }
-                info!(queued = count, "Draining offline queue");
-                match q.dequeue_batch(self.config.batch_size) {
-                    Ok(b) => b,
-                    Err(e) => {
-                        error!(error = %e, "Failed to dequeue batch");
-                        continue;
+            // Wait for delay or shutdown signal
+            tokio::select! {
+                _ = tokio::time::sleep(tokio::time::Duration::from_secs(delay_secs)) => {}
+                _ = shutdown_rx.changed() => {
+                    if *shutdown_rx.borrow() {
+                        // Shutdown signaled — drain all remaining entries immediately
+                        info!("Shutdown: draining remaining offline queue entries");
+                        loop {
+                            if !self.drain_one_batch().await {
+                                break;
+                            }
+                        }
+                        info!("Shutdown: offline queue drain complete");
+                        return;
                     }
                 }
-            };
-
-            if batch.is_empty() {
-                continue;
             }
 
-            let ids: Vec<i64> = batch.iter().map(|(id, _)| *id).collect();
-            let entries: Vec<ParsedEntry> = batch.into_iter().map(|(_, e)| e).collect();
-
-            let url = format!("{}/ingest", self.config.server_url);
-            let req = IngestRequest { entries };
-
-            let mut builder = self.client.post(&url).json(&req);
-            if !self.config.auth_token.is_empty() {
-                builder = builder.header("Authorization", format!("Bearer {}", self.config.auth_token));
-            }
-
-            match builder.send().await {
-                Ok(resp) if resp.status().is_success() => {
-                    let q = self.queue.lock().await;
-                    if let Err(e) = q.remove(&ids) {
-                        error!(error = %e, "Failed to remove drained entries");
-                    }
-                    info!(count = ids.len(), "Queue drained successfully");
-                    delay_secs = 30; // Reset on success
-                }
-                Ok(resp) if resp.status().is_client_error()
-                    && resp.status().as_u16() != 401
-                    && resp.status().as_u16() != 413
-                    && resp.status().as_u16() != 429 =>
-                {
-                    // 4xx (except auth/size/rate errors): will never succeed, remove from queue
-                    error!(status = %resp.status(), "Queue drain got client error (not retryable), removing entries");
-                    let q = self.queue.lock().await;
-                    if let Err(e) = q.remove(&ids) {
-                        error!(error = %e, "Failed to remove rejected entries from queue");
-                    }
-                    delay_secs = 30; // Reset — not a transient error
-                }
-                Ok(resp) => {
-                    // 5xx: server error — back off and retry
-                    warn!(status = %resp.status(), "Queue drain failed with server error, backing off");
-                    delay_secs = (delay_secs * 2).min(self.config.max_retry_delay_secs);
-                }
-                Err(e) => {
-                    warn!(error = %e, "Queue drain failed, backing off");
-                    delay_secs = (delay_secs * 2).min(self.config.max_retry_delay_secs);
-                }
+            if self.drain_one_batch().await {
+                delay_secs = 30; // Reset on activity
+            } else {
+                delay_secs = (delay_secs * 2).min(self.config.max_retry_delay_secs);
             }
         }
     }

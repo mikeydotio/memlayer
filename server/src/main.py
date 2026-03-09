@@ -1,7 +1,9 @@
 import asyncio
 import hmac
+import json as json_mod
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, HTTPException
@@ -14,7 +16,30 @@ from .routes.ingest import router as ingest_router
 from .routes.search import router as search_router
 from .routes.files import router as files_router
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        log_data = {
+            "timestamp": self.formatTime(record),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info and record.exc_info[0]:
+            log_data["exception"] = self.formatException(record.exc_info)
+        return json_mod.dumps(log_data)
+
+
+log_format = os.environ.get("LOG_FORMAT", "text")
+log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+if log_format == "json":
+    handler = logging.StreamHandler()
+    handler.setFormatter(JsonFormatter())
+    logging.root.handlers = [handler]
+    logging.root.setLevel(getattr(logging, log_level, logging.INFO))
+else:
+    logging.basicConfig(level=getattr(logging, log_level, logging.INFO), format="%(asctime)s %(name)s %(levelname)s %(message)s")
+
 logger = logging.getLogger(__name__)
 
 
@@ -100,6 +125,16 @@ async def lifespan(app: FastAPI):
     evict_task = asyncio.create_task(eviction_worker())
     logger.info("Memlayer server started")
     yield
+
+    shutdown_start = time.monotonic()
+    logger.info("Shutting down...")
+
+    # Give workers a moment to finish current operations
+    from .embeddings import _queue
+    if _queue:
+        logger.info(f"Embedding queue has {len(_queue)} items, waiting up to 10s...")
+        await asyncio.sleep(min(10, len(_queue) * 0.5))  # Rough estimate
+
     embed_task.cancel()
     evict_task.cancel()
     try:
@@ -107,10 +142,12 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     await close_pool()
-    logger.info("Memlayer server stopped")
+
+    elapsed = time.monotonic() - shutdown_start
+    logger.info(f"Memlayer server stopped (shutdown took {elapsed:.1f}s)")
 
 
-app = FastAPI(title="claude-mem-server", version="0.4.0", lifespan=lifespan)
+app = FastAPI(title="claude-mem-server", version="0.5.0", lifespan=lifespan)
 
 
 # Auth middleware

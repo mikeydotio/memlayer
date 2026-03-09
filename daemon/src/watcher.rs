@@ -1,7 +1,9 @@
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::Mutex;
+use tokio::sync::watch;
 use tracing::{info, warn, error, debug};
 
 use crate::config::Config;
@@ -13,6 +15,8 @@ pub struct Watcher {
     config: Arc<Config>,
     cursor: Arc<Mutex<CursorManager>>,
     sender: Arc<Sender>,
+    stats_files_processed: AtomicU64,
+    stats_entries_parsed: AtomicU64,
 }
 
 impl Watcher {
@@ -21,7 +25,13 @@ impl Watcher {
         cursor: Arc<Mutex<CursorManager>>,
         sender: Arc<Sender>,
     ) -> Self {
-        Watcher { config, cursor, sender }
+        Watcher {
+            config,
+            cursor,
+            sender,
+            stats_files_processed: AtomicU64::new(0),
+            stats_entries_parsed: AtomicU64::new(0),
+        }
     }
 
     /// Process a single JSONL file from its cursor position.
@@ -96,6 +106,7 @@ impl Watcher {
             }
             if all_ok {
                 debug!(path = %path_str, entries = count, "Processed file");
+                self.stats_entries_parsed.fetch_add(count as u64, Ordering::Relaxed);
             } else {
                 // Do NOT advance cursor — entries will be re-read on next cycle
                 // (idempotent payload_hash dedup prevents duplicates for already-sent chunks)
@@ -108,6 +119,8 @@ impl Watcher {
             let cursor = self.cursor.lock().await;
             cursor.set_offset(&path_str, new_offset)?;
         }
+
+        self.stats_files_processed.fetch_add(1, Ordering::Relaxed);
 
         Ok(())
     }
@@ -137,8 +150,15 @@ impl Watcher {
         Ok(())
     }
 
-    /// Start the file watcher. Runs until cancelled.
-    pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
+    /// Reset and return stats counters for periodic logging.
+    fn take_stats(&self) -> (u64, u64) {
+        let files = self.stats_files_processed.swap(0, Ordering::Relaxed);
+        let entries = self.stats_entries_parsed.swap(0, Ordering::Relaxed);
+        (files, entries)
+    }
+
+    /// Start the file watcher. Runs until shutdown is signaled or the channel closes.
+    pub async fn run(&self, mut shutdown_rx: watch::Receiver<bool>) -> Result<(), Box<dyn std::error::Error>> {
         use notify::{Config as NotifyConfig, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher as _};
 
         // Initial scan first
@@ -193,24 +213,58 @@ impl Watcher {
         let mut debounce_map: std::collections::HashMap<PathBuf, tokio::time::Instant> =
             std::collections::HashMap::new();
         let debounce_duration = tokio::time::Duration::from_millis(500);
+        let stats_interval = tokio::time::Duration::from_secs(60);
+        let mut stats_timer = tokio::time::interval(stats_interval);
+        // Skip the first tick (fires immediately)
+        stats_timer.tick().await;
 
         loop {
-            match tokio::time::timeout(tokio::time::Duration::from_secs(1), rx.recv()).await {
-                Ok(Some(path)) => {
-                    let now = tokio::time::Instant::now();
-                    if let Some(last) = debounce_map.get(&path) {
-                        if now.duration_since(*last) < debounce_duration {
-                            continue;
-                        }
-                    }
-                    debounce_map.insert(path.clone(), now);
+            tokio::select! {
+                result = tokio::time::timeout(tokio::time::Duration::from_secs(1), rx.recv()) => {
+                    match result {
+                        Ok(Some(path)) => {
+                            let now = tokio::time::Instant::now();
+                            if let Some(last) = debounce_map.get(&path) {
+                                if now.duration_since(*last) < debounce_duration {
+                                    continue;
+                                }
+                            }
+                            debounce_map.insert(path.clone(), now);
 
-                    if let Err(e) = self.process_file(&path).await {
-                        error!(path = %path.display(), error = %e, "Error processing file change");
+                            if let Err(e) = self.process_file(&path).await {
+                                error!(path = %path.display(), error = %e, "Error processing file change");
+                            }
+                        }
+                        Ok(None) => break, // Channel closed
+                        Err(_) => {} // Timeout, loop again
                     }
                 }
-                Ok(None) => break, // Channel closed
-                Err(_) => {} // Timeout, loop again
+                _ = stats_timer.tick() => {
+                    let (files, entries) = self.take_stats();
+                    let queue_depth = {
+                        // We don't have direct access to queue here, so report file/entry stats
+                        0u64 // Queue depth reported separately by drain loop
+                    };
+                    info!(
+                        files_processed = files,
+                        entries_parsed = entries,
+                        "Periodic stats (last 60s)"
+                    );
+                    let _ = queue_depth; // suppress unused warning
+                }
+                _ = shutdown_rx.changed() => {
+                    if *shutdown_rx.borrow() {
+                        info!("Shutdown: processing any remaining file events");
+                        // Drain any pending events from the channel
+                        while let Ok(path) = rx.try_recv() {
+                            if let Err(e) = self.process_file(&path).await {
+                                error!(path = %path.display(), error = %e, "Error processing file during shutdown");
+                            }
+                        }
+                        info!("Shutdown: file watcher stopped");
+                        return Ok(());
+                    }
+                }
             }
         }
 
