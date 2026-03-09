@@ -6,8 +6,11 @@ import os
 import time
 from contextlib import asynccontextmanager
 
+from pathlib import Path
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .db import init_pool, close_pool
@@ -220,3 +223,9 @@ async def health():
         status["response_analytics"] = analytics
 
     return status
+
+
+# Mount web UI (static files) — must be after all API routes
+_static_dir = Path(__file__).parent.parent / "static"
+if _static_dir.is_dir():
+    app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="ui")

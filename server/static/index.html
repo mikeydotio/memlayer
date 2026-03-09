@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memlayer Dashboard</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --border: #2a2d3a;
+  --text: #e1e4ed;
+  --text-dim: #8b8fa3;
+  --accent: #6c7bf7;
+  --accent-dim: #4a56c7;
+  --green: #4ade80;
+  --yellow: #fbbf24;
+  --red: #f87171;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+.container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+header h1 { font-size: 20px; font-weight: 600; }
+header h1 span { color: var(--accent); }
+.status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 500; }
+.status-ok { background: rgba(74,222,128,0.12); color: var(--green); }
+.status-degraded { background: rgba(248,113,113,0.12); color: var(--red); }
+nav { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+nav button { background: none; border: none; color: var(--text-dim); padding: 10px 16px; cursor: pointer; font-size: 14px; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; }
+nav button:hover { color: var(--text); }
+nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+.card h2 { font-size: 15px; font-weight: 600; color: var(--text-dim); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.stat { text-align: center; }
+.stat .value { font-size: 28px; font-weight: 700; color: var(--text); }
+.stat .label { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+.progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.progress-bar .fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.5s ease; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; color: var(--text-dim); font-weight: 500; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.section { display: none; }
+.section.active { display: block; }
+.config-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.config-row:last-child { border-bottom: none; }
+.config-key { font-weight: 500; font-family: monospace; font-size: 13px; }
+.config-val { color: var(--text-dim); font-family: monospace; font-size: 13px; }
+.empty { color: var(--text-dim); font-style: italic; padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1><span>mem</span>layer</h1>
+    <div id="status-badge" class="status-badge status-ok">checking...</div>
+  </header>
+
+  <nav>
+    <button class="active" data-tab="dashboard">Dashboard</button>
+    <button data-tab="analytics">Analytics</button>
+    <button data-tab="config">Configuration</button>
+    <button data-tab="setup">Setup</button>
+  </nav>
+
+  <div id="dashboard" class="section active">
+    <div class="grid">
+      <div class="card">
+        <h2>Entries</h2>
+        <div class="stat"><div class="value" id="total-entries">—</div><div class="label">total indexed</div></div>
+      </div>
+      <div class="card">
+        <h2>Embeddings</h2>
+        <div class="stat"><div class="value" id="embedded-count">—</div><div class="label" id="embed-label">embedded</div></div>
+        <div class="progress-bar"><div class="fill" id="embed-progress" style="width:0%"></div></div>
+      </div>
+      <div class="card">
+        <h2>Queue</h2>
+        <div class="stat"><div class="value" id="queue-depth">—</div><div class="label">pending</div></div>
+      </div>
+      <div class="card">
+        <h2>Database</h2>
+        <div class="stat"><div class="value" id="db-status">—</div><div class="label">connection</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Components</h2>
+      <table>
+        <thead><tr><th>Component</th><th>Status</th></tr></thead>
+        <tbody id="components-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="analytics" class="section">
+    <div class="card">
+      <h2>Response Analytics</h2>
+      <table>
+        <thead><tr><th>Endpoint</th><th>Requests</th><th>Avg Size</th><th>Min</th><th>Max</th><th>Offloaded</th><th>Rate</th></tr></thead>
+        <tbody id="analytics-table"></tbody>
+      </table>
+      <div id="analytics-empty" class="empty">No request data yet. Analytics populate as the server handles requests.</div>
+    </div>
+  </div>
+
+  <div id="config" class="section">
+    <div class="card">
+      <h2>Server Configuration</h2>
+      <div id="config-list"></div>
+    </div>
+  </div>
+
+  <div id="setup" class="section">
+    <div class="card">
+      <h2>Client Setup</h2>
+      <p style="margin-bottom:16px">Run this on each machine where you use Claude Code:</p>
+      <pre style="background:var(--bg);padding:16px;border-radius:8px;overflow-x:auto;font-size:13px">curl -fsSL https://raw.githubusercontent.com/mikeydotio/memlayer/main/install.sh | bash</pre>
+      <p style="margin-top:16px;color:var(--text-dim)">When prompted, provide the server URL and auth token from your .env file.</p>
+    </div>
+    <div class="card">
+      <h2>API Endpoints</h2>
+      <table>
+        <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>/api/search</code></td><td>POST</td><td>Hybrid search across conversations</td></tr>
+          <tr><td><code>/api/sessions/{id}/summary</code></td><td>GET</td><td>Full session history</td></tr>
+          <tr><td><code>/api/ingest</code></td><td>POST</td><td>Ingest conversation entries</td></tr>
+          <tr><td><code>/api/files/{id}</code></td><td>GET</td><td>Download response file</td></tr>
+          <tr><td><code>/api/files/{id}/lines</code></td><td>GET</td><td>Read line range from file</td></tr>
+          <tr><td><code>/api/embeddings/status</code></td><td>GET</td><td>Embedding progress</td></tr>
+          <tr><td><code>/health</code></td><td>GET</td><td>Health check (no auth)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+// Tab navigation
+$$('nav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('nav button').forEach(b => b.classList.remove('active'));
+    $$('.section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    $(`#${btn.dataset.tab}`).classList.add('active');
+  });
+});
+
+function fmt(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return String(n);
+}
+
+function fmtBytes(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(1) + ' MB';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + ' KB';
+  return n + ' B';
+}
+
+async function refresh() {
+  try {
+    const resp = await fetch('/health');
+    const data = await resp.json();
+
+    // Status badge
+    const badge = $('#status-badge');
+    badge.textContent = data.status === 'ok' ? 'Healthy' : 'Degraded';
+    badge.className = `status-badge ${data.status === 'ok' ? 'status-ok' : 'status-degraded'}`;
+
+    // Components
+    const tbody = $('#components-table');
+    tbody.innerHTML = '';
+    for (const [k, v] of Object.entries(data.components || {})) {
+      const tr = document.createElement('tr');
+      const ok = String(v).startsWith('ok');
+      tr.innerHTML = `<td>${k}</td><td style="color:${ok ? 'var(--green)' : 'var(--red)'}">${v}</td>`;
+      tbody.appendChild(tr);
+    }
+
+    // DB status
+    const dbOk = String(data.components?.database || '').startsWith('ok');
+    $('#db-status').textContent = dbOk ? 'OK' : 'Error';
+    $('#db-status').style.color = dbOk ? 'var(--green)' : 'var(--red)';
+
+    // Embedding progress
+    const ep = data.embedding_progress;
+    if (ep) {
+      $('#total-entries').textContent = fmt(ep.total_entries);
+      $('#embedded-count').textContent = fmt(ep.embedded);
+      $('#embed-label').textContent = `of ${fmt(ep.total_entries)} embedded`;
+      $('#queue-depth').textContent = fmt(ep.queue_depth);
+      const pct = ep.total_entries > 0 ? (ep.embedded / ep.total_entries * 100) : 0;
+      $('#embed-progress').style.width = pct + '%';
+    } else {
+      $('#total-entries').textContent = '—';
+      $('#embedded-count').textContent = 'N/A';
+      $('#embed-label').textContent = 'embeddings disabled';
+      $('#queue-depth').textContent = '—';
+    }
+
+    // Analytics
+    const analytics = data.response_analytics;
+    const atbody = $('#analytics-table');
+    const aempty = $('#analytics-empty');
+    if (analytics && Object.keys(analytics).length > 0) {
+      aempty.style.display = 'none';
+      atbody.innerHTML = '';
+      for (const [endpoint, s] of Object.entries(analytics)) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><code>${endpoint}</code></td><td>${s.total_requests}</td><td>${fmtBytes(s.avg_bytes)}</td><td>${fmtBytes(s.min_bytes)}</td><td>${fmtBytes(s.max_bytes)}</td><td>${s.offloaded_count}</td><td>${(s.offload_rate*100).toFixed(1)}%</td>`;
+        atbody.appendChild(tr);
+      }
+    } else {
+      aempty.style.display = 'block';
+      atbody.innerHTML = '';
+    }
+
+    // Config (from health data + known defaults)
+    const cl = $('#config-list');
+    cl.innerHTML = '';
+    const configs = [
+      ['EMBEDDING_PROVIDER', ep?.provider || 'disabled'],
+      ['EMBEDDING_MODEL', ep?.model || 'N/A'],
+      ['EMBEDDINGS_ENABLED', ep?.enabled ? 'yes' : 'no'],
+      ['RESPONSE_BUDGET_BYTES', '200000'],
+    ];
+    for (const [k, v] of configs) {
+      const row = document.createElement('div');
+      row.className = 'config-row';
+      row.innerHTML = `<span class="config-key">${k}</span><span class="config-val">${v}</span>`;
+      cl.appendChild(row);
+    }
+  } catch (e) {
+    $('#status-badge').textContent = 'Unreachable';
+    $('#status-badge').className = 'status-badge status-degraded';
+  }
+}
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>
