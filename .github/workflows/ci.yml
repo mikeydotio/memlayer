@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-daemon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run daemon tests
+        run: cargo test
+        working-directory: daemon
+
+  test-mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install and test MCP server
+        run: npm ci && npx vitest run
+        working-directory: mcp
+
+  test-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Run server unit tests
+        run: uv pip install --system ".[dev]" && pytest
+        working-directory: server
+
+      - name: Build and start test stack
+        run: docker compose -f docker-compose.test.yml up -d --build --wait
+        timeout-minutes: 5
+
+      - name: Run E2E tests
+        run: ./tests/e2e.sh
+
+      - name: Tear down test stack
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v
+
+  test-migration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and start migration test stack
+        run: docker compose -f docker-compose.migration-test.yml up -d --build --wait
+        timeout-minutes: 5
+
+      - name: Run migration E2E tests
+        run: ./tests/e2e-migration.sh
+
+      - name: Tear down migration test stack
+        if: always()
+        run: docker compose -f docker-compose.migration-test.yml down -v

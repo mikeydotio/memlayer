@@ -156,6 +156,17 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+header "Migration endpoints"
+MIGRATION_RESP=$(curl -s -o /dev/null -w "%{http_code}" \
+    -H "Authorization: Bearer $TOKEN" \
+    "http://127.0.0.1:8421/api/migration/status")
+if [ "$MIGRATION_RESP" = "200" ]; then
+    pass "Migration status endpoint accessible"
+else
+    fail "Migration status returned $MIGRATION_RESP"
+fi
+
+# ---------------------------------------------------------------------------
 header "Results"
 echo ""
 printf "  \033[32mPassed: %d\033[0m\n" "$PASSED"

@@ -77,6 +77,19 @@ generate_secret() {
     head -c 32 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c 32
 }
 
+# test_openai_key KEY → returns 0 if valid, 1 if invalid
+test_openai_key() {
+    local key="$1"
+    local http_code
+    http_code=$(curl -s -o /dev/null -w '%{http_code}' \
+        --max-time 10 \
+        -H "Authorization: Bearer $key" \
+        -H "Content-Type: application/json" \
+        -d '{"model":"text-embedding-3-small","input":"test"}' \
+        "https://api.openai.com/v1/embeddings")
+    [[ "$http_code" == "200" ]]
+}
+
 # ── Utilities ────────────────────────────────────────────────────────
 
 require_cmd() {

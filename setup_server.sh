@@ -67,7 +67,27 @@ if [[ "${_generate_env:-}" == "true" ]]; then
     openai_key=""
     embedding_provider="openai"
     if confirm "Configure OpenAI embeddings? (optional)" "n"; then
-        openai_key=$(prompt_secret "OpenAI API key")
+        while true; do
+            openai_key=$(prompt_secret "OpenAI API key")
+            if [[ -z "$openai_key" ]]; then
+                warn "No key entered, skipping OpenAI embeddings"
+                break
+            fi
+            printf "  Testing API key... "
+            if test_openai_key "$openai_key"; then
+                success "API key is valid"
+                break
+            else
+                warn "API key test failed (invalid key or network error)"
+                if ! confirm "Try a different key?" "y"; then
+                    if confirm "Continue without OpenAI embeddings?" "y"; then
+                        openai_key=""
+                        info "Skipping OpenAI embeddings (FTS-only mode)"
+                    fi
+                    break
+                fi
+            fi
+        done
     fi
 
     cat > .env <<EOF

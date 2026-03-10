@@ -1,6 +1,6 @@
 [project]
 name = "claude-mem-server"
-version = "1.4.0"
+version = "1.4.1"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "numpy>=1.26",
+    "cryptography>=44.0",
 ]
 
 [project.optional-dependencies]

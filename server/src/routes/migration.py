@@ -383,10 +383,10 @@ async def stream_files(
     if after_id:
         rows = await pool.fetch(
             """
-            SELECT file_id, content_type, size_bytes, summary, index_data, created_at
+            SELECT id, file_path, content_type, size_bytes, summary, structural_index, created_at
             FROM response_files
-            WHERE file_id > $1::uuid
-            ORDER BY file_id ASC
+            WHERE id > $1::uuid AND deleted_at IS NULL
+            ORDER BY id ASC
             LIMIT $2
             """,
             after_id,
@@ -395,9 +395,10 @@ async def stream_files(
     else:
         rows = await pool.fetch(
             """
-            SELECT file_id, content_type, size_bytes, summary, index_data, created_at
+            SELECT id, file_path, content_type, size_bytes, summary, structural_index, created_at
             FROM response_files
-            ORDER BY file_id ASC
+            WHERE deleted_at IS NULL
+            ORDER BY id ASC
             LIMIT $1
             """,
             batch_size,
@@ -405,12 +406,11 @@ async def stream_files(
 
     files = []
     for row in rows:
-        file_id = str(row["file_id"])
+        file_id = str(row["id"])
         # Read file content from storage
-        file_path = f"{settings.file_storage_path}/{file_id}"
         content = None
         try:
-            with open(file_path, "r") as f:
+            with open(row["file_path"], "r") as f:
                 content = f.read()
         except FileNotFoundError:
             logger.warning("File %s missing from storage, skipping content", file_id)
@@ -420,7 +420,7 @@ async def stream_files(
             "content_type": row["content_type"],
             "size_bytes": row["size_bytes"],
             "summary": row["summary"],
-            "index_data": row["index_data"],
+            "index_data": row["structural_index"],
             "created_at": row["created_at"].isoformat(),
             "content": content,
         })
@@ -512,6 +512,29 @@ async def _transfer_worker(
         auth_headers = {"Authorization": f"Bearer migration:{migration_key}"}
 
         async with httpx.AsyncClient(timeout=60.0) as client:
+            # Fetch config and import sessions first (required for FK constraints)
+            config_resp = await _fetch_with_retry(
+                client,
+                "GET",
+                f"{source_url}/migration/stream/config",
+                params={"key": migration_key},
+                headers=auth_headers,
+            )
+            config_data = config_resp.json()
+            for sess in config_data.get("sessions", []):
+                await pool.execute(
+                    """
+                    INSERT INTO claude_sessions (session_id, project_path, client_machine_id, slug)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (session_id) DO NOTHING
+                    """,
+                    sess["session_id"],
+                    sess.get("project_path"),
+                    sess.get("client_machine_id"),
+                    sess.get("slug"),
+                )
+            logger.info("Imported %d sessions from source", len(config_data.get("sessions", [])))
+
             # Pull entries
             after_id = 0
             # Check for checkpoint
@@ -624,18 +647,19 @@ async def _transfer_worker(
                 for file_data in files:
                     try:
                         file_id = file_data["file_id"]
+                        file_name = f"{file_id}.txt"
+                        file_path = os.path.join(settings.file_storage_path, file_name)
                         await pool.execute(
-                            """INSERT INTO response_files (file_id, content_type, size_bytes, summary, index_data)
-                            VALUES ($1::uuid, $2, $3, $4, $5)
-                            ON CONFLICT (file_id) DO NOTHING""",
-                            file_id, file_data.get("content_type", "text/plain"),
+                            """INSERT INTO response_files (id, file_path, content_type, size_bytes, summary, structural_index, source_endpoint)
+                            VALUES ($1::uuid, $2, $3, $4, $5, $6, 'migration')
+                            ON CONFLICT (id) DO NOTHING""",
+                            file_id, file_path, file_data.get("content_type", "text/plain"),
                             file_data.get("size_bytes", 0),
                             file_data.get("summary"), file_data.get("index_data"),
                         )
                         content = file_data.get("content")
                         if content is not None:
                             os.makedirs(settings.file_storage_path, exist_ok=True)
-                            file_path = f"{settings.file_storage_path}/{file_id}"
                             with open(file_path, "w") as f:
                                 f.write(content)
                         total_files += 1
@@ -849,15 +873,18 @@ async def receive_files(request: Request):
         try:
             file_id = file_data["file_id"]
             content = file_data.get("content")
+            file_name = f"{file_id}.txt"
+            file_path = os.path.join(settings.file_storage_path, file_name)
 
             # Insert file metadata
             await pool.execute(
                 """
-                INSERT INTO response_files (file_id, content_type, size_bytes, summary, index_data)
-                VALUES ($1::uuid, $2, $3, $4, $5)
-                ON CONFLICT (file_id) DO NOTHING
+                INSERT INTO response_files (id, file_path, content_type, size_bytes, summary, structural_index, source_endpoint)
+                VALUES ($1::uuid, $2, $3, $4, $5, $6, 'migration')
+                ON CONFLICT (id) DO NOTHING
                 """,
                 file_id,
+                file_path,
                 file_data.get("content_type", "text/plain"),
                 file_data.get("size_bytes", 0),
                 file_data.get("summary"),
@@ -867,7 +894,6 @@ async def receive_files(request: Request):
             # Write file content to storage
             if content is not None:
                 os.makedirs(settings.file_storage_path, exist_ok=True)
-                file_path = f"{settings.file_storage_path}/{file_id}"
                 with open(file_path, "w") as f:
                     f.write(content)
 

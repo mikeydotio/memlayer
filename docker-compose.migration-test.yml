@@ -1,0 +1,121 @@
+# Migration E2E test stack — two independent server+DB pairs
+# Usage: docker compose -f docker-compose.migration-test.yml up -d --build --wait
+#        ./tests/e2e-migration.sh
+#        docker compose -f docker-compose.migration-test.yml down -v
+
+services:
+  source-db:
+    image: pgvector/pgvector:pg16
+    container_name: memlayer-migration-source-db
+    environment:
+      POSTGRES_DB: memlayer_source
+      POSTGRES_USER: memlayer
+      POSTGRES_PASSWORD: source-password
+    volumes:
+      - source-pgdata:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d/migrations:ro
+      - ./db/init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
+    ports:
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memlayer -d memlayer_source"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+    shm_size: 128mb
+    networks:
+      - migration-net
+
+  source-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: memlayer-migration-source-server
+    depends_on:
+      source-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://memlayer:source-password@source-db:5432/memlayer_source
+      MEMLAYER_AUTH_TOKEN: source-token
+      EMBEDDING_PROVIDER: openai
+      OPENAI_API_KEY: ""
+      FILE_STORAGE_PATH: /data/response_files
+      RESPONSE_BUDGET_BYTES: "200000"
+      INDEX_MODE: "off"
+      LOG_LEVEL: DEBUG
+    volumes:
+      - source-response-files:/data/response_files
+      - ./db/migrations:/app/migrations:ro
+    ports:
+      - "127.0.0.1:8423:8420"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8420/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - migration-net
+
+  dest-db:
+    image: pgvector/pgvector:pg16
+    container_name: memlayer-migration-dest-db
+    environment:
+      POSTGRES_DB: memlayer_dest
+      POSTGRES_USER: memlayer
+      POSTGRES_PASSWORD: dest-password
+    volumes:
+      - dest-pgdata:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d/migrations:ro
+      - ./db/init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
+    ports:
+      - "127.0.0.1:5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memlayer -d memlayer_dest"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+    shm_size: 128mb
+    networks:
+      - migration-net
+
+  dest-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: memlayer-migration-dest-server
+    depends_on:
+      dest-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://memlayer:dest-password@dest-db:5432/memlayer_dest
+      MEMLAYER_AUTH_TOKEN: dest-token
+      EMBEDDING_PROVIDER: openai
+      OPENAI_API_KEY: ""
+      FILE_STORAGE_PATH: /data/response_files
+      RESPONSE_BUDGET_BYTES: "200000"
+      INDEX_MODE: "off"
+      LOG_LEVEL: DEBUG
+    volumes:
+      - dest-response-files:/data/response_files
+      - ./db/migrations:/app/migrations:ro
+    ports:
+      - "127.0.0.1:8424:8420"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8420/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - migration-net
+
+volumes:
+  source-pgdata:
+  source-response-files:
+  dest-pgdata:
+  dest-response-files:
+
+networks:
+  migration-net:
+    driver: bridge
