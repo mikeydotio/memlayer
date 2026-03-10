@@ -21,6 +21,7 @@ Start a Claude Code session and ask *"Do you remember how we fixed the SSH tunne
   - [memlayer restore](#memlayer-restore)
   - [memlayer forget](#memlayer-forget)
   - [memlayer verify](#memlayer-verify)
+  - [memlayer migrate](#memlayer-migrate)
 - [MCP Tools](#mcp-tools)
   - [search_memory](#search_memory)
   - [get_session_summary](#get_session_summary)
@@ -489,6 +490,22 @@ Checks performed:
 - Duplicate payload hashes
 - Pending database migrations
 
+### memlayer migrate
+
+Move your memlayer instance to a new server with zero data loss. The migration transfers all conversation entries, embeddings, and response files from the source to the destination, then redirects the daemon automatically.
+
+```bash
+# On the source server — generate a migration key
+memlayer migrate
+
+# On the destination server — set up and pull data from source
+./setup_server.sh --migrate
+```
+
+The migration uses a state machine (INITIATED → KEY_EXCHANGED → REDIRECTING → DRAINING → TRANSFERRING → VERIFYING → COMPLETE) with Ed25519-signed HTTP 449 redirects to hand off the daemon mid-flight. The daemon queues entries locally during the transition — no data is ever discarded.
+
+See [docs/migration.md](docs/migration.md) for the full guide, including failure recovery and manual steps.
+
 ## MCP Tools
 
 Memlayer exposes three tools to Claude Code via the [Model Context Protocol](https://modelcontextprotocol.io/). These are what Claude calls when it needs to recall past conversations.
@@ -644,6 +661,14 @@ git pull
 ```
 
 Re-running the setup scripts is safe and idempotent. They detect existing installations and offer to update each component individually.
+
+### What changed in v1.4.0
+
+- **Server migration** -- Move your memlayer instance to a new host with zero downtime and zero data loss. See [docs/migration.md](docs/migration.md).
+- **Ed25519-signed 449 redirects** -- The daemon automatically follows server redirects during migration, queuing entries locally to guarantee no data is lost.
+- **Migration auth** -- Time-limited migration keys with SHA-256 hashing, automatic TTL extension after handshake, and stale cleanup.
+- **Transfer worker** -- Background pull-based transfer of entries, embeddings, and response files from source to destination.
+- **Daemon credential provisioning** -- After migration completes, the daemon automatically obtains new credentials from the destination server.
 
 ### What changed in v1.0.0
 
@@ -922,6 +947,7 @@ memlayer/
       parser.rs          JSONL parsing and content extraction
       watcher.rs         File watcher with byte-offset cursor tracking
       sender.rs          HTTP batch sender with retry and backoff
+      migration.rs       Server migration: 449 handling, Ed25519, credential provisioning
       queue.rs           SQLite offline queue
       cursor.rs          Cursor persistence for idempotent re-runs
   server/                Python FastAPI server
@@ -933,16 +959,19 @@ memlayer/
       embeddings.py      OpenAI/Ollama embedding providers and background worker
       file_storage.py    Response file storage with LRU eviction
       eviction.py        Background eviction worker
+      migration_state.py Migration state machine, key management, Ed25519 signing
       routes/
-        ingest.py        POST /api/ingest
+        ingest.py        POST /api/ingest (with migration 449 redirect)
         search.py        POST /api/search + GET /api/sessions/{id}/summary
         files.py         GET /api/files/{file_id}
+        migration.py     Migration API endpoints (initiate, transfer, receive)
       indexing/          Structural indexing for large responses
   mcp/                   TypeScript MCP server
     src/
       index.ts           Tool definitions (search_memory, get_session_summary, read_memory_file)
       api-client.ts      HTTP client for the memlayer API
       file-cache.ts      Local file cache for large response files
+      format.ts          Response formatting helpers
   db/
     migrations/          SQL migrations (applied in order on server startup)
     init.sh              Docker entrypoint init script
@@ -964,8 +993,21 @@ memlayer/
 | `POST` | `/api/search` | Yes | Hybrid search with optional filters (session, project, date, type) |
 | `GET` | `/api/sessions/{id}/summary` | Yes | Chronological conversation entries for a session |
 | `GET` | `/api/files/{file_id}` | Yes | Download a large response file |
+| `POST` | `/api/migration/initiate` | Admin | Generate migration key and Ed25519 keypair |
+| `GET` | `/api/migration/status` | Admin or migration key | Migration state and transfer progress |
+| `POST` | `/api/migration/cancel` | Admin | Cancel an active migration |
+| `POST` | `/api/migration/verify-destination` | Migration key | Validate key and negotiate embeddings |
+| `POST` | `/api/migration/start-redirect` | Migration key | Begin 449 redirect of ingest requests |
+| `GET` | `/api/migration/stream/config` | Migration key | Export server config for transfer |
+| `GET` | `/api/migration/stream/entries` | Migration key | Paginated entry export |
+| `GET` | `/api/migration/stream/files` | Migration key | Response file export |
+| `POST` | `/api/migration/receive/handshake` | Admin | Accept migration on destination |
+| `POST` | `/api/migration/receive/entries` | Admin | Receive migrated entries |
+| `POST` | `/api/migration/receive/files` | Admin | Receive migrated files |
+| `POST` | `/api/migration/receive/complete` | Admin | Verify counts and complete migration |
+| `GET` | `/api/migration/client-provision` | Migration key | Provision daemon credentials post-migration |
 
-All `/api` endpoints require `Authorization: Bearer <token>`.
+All `/api` endpoints require `Authorization: Bearer <token>`. Migration endpoints accept either the admin token or a time-limited migration key (noted in the Auth column).
 
 ## Uninstalling
 
