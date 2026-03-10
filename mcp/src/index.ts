@@ -2,8 +2,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { MemlayerClient, type LargeResponseRef } from "./api-client.js";
+import { MemlayerClient } from "./api-client.js";
 import { FileCache } from "./file-cache.js";
+import { formatLargeResponseNotice } from "./format.js";
 
 const client = new MemlayerClient(
   process.env.MEMLAYER_SERVER_URL || "http://localhost:8420/api",
@@ -17,21 +18,6 @@ const server = new McpServer({
   version: "1.3.0",
 });
 
-function formatLargeResponseNotice(ref: LargeResponseRef): string {
-  return [
-    `The full response was too large to return inline (${ref.size_bytes} bytes, type: ${ref.content_type}). It has been saved to a file.`,
-    ``,
-    `**File ID:** \`${ref.file_id}\``,
-    ``,
-    `**Summary:**`,
-    ref.summary,
-    ``,
-    `**Structural Index (line ranges):**`,
-    ref.index,
-    ``,
-    `Use \`read_memory_file\` with file_id="${ref.file_id}" and the line ranges above to read the sections you need.`,
-  ].join("\n");
-}
 
 server.tool(
   "search_memory",

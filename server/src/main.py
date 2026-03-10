@@ -20,6 +20,7 @@ from .routes.ingest import router as ingest_router
 from .routes.search import router as search_router
 from .routes.files import router as files_router
 from .routes.embeddings import router as embeddings_router
+from .routes.migration import router as migration_router
 
 
 class JsonFormatter(logging.Formatter):
@@ -152,7 +153,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Memlayer server stopped (shutdown took {elapsed:.1f}s)")
 
 
-app = FastAPI(title="claude-mem-server", version="1.3.0", lifespan=lifespan)
+app = FastAPI(title="claude-mem-server", version="1.4.0", lifespan=lifespan)
 
 
 # Auth middleware
@@ -167,14 +168,30 @@ async def auth_middleware(request: Request, call_next):
     if settings.memlayer_auth_token:
         auth = request.headers.get("Authorization", "")
         expected = f"Bearer {settings.memlayer_auth_token}"
-        if not hmac.compare_digest(auth, expected):
+        if hmac.compare_digest(auth, expected):
+            pass  # Admin auth — allow
+        elif auth.startswith("Bearer migration:"):
+            # Migration key passthrough for endpoints that self-validate
+            path = request.url.path
+            migration_key_allowed = (
+                path in {
+                    "/api/migration/status",
+                    "/api/migration/verify-destination",
+                    "/api/migration/client-provision",
+                    "/api/ingest",
+                }
+                or path.startswith("/api/migration/stream/")
+            )
+            if not migration_key_allowed:
+                return JSONResponse(status_code=401, content={"detail": "Invalid or missing auth token"})
+        else:
             return JSONResponse(status_code=401, content={"detail": "Invalid or missing auth token"})
 
     # Version compatibility check
     client_version = request.headers.get("X-Memlayer-Version", "")
     if client_version:
         # Compare major.minor — warn if different
-        server_parts = "1.3.0".split(".")[:2]
+        server_parts = "1.4.0".split(".")[:2]
         client_parts = client_version.split(".")[:2]
         if server_parts != client_parts:
             logger.warning(
@@ -185,10 +202,29 @@ async def auth_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+@app.middleware("http")
+async def migration_pubkey_middleware(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path == "/api/ingest":
+        try:
+            from .migration_state import get_migration_manager, MigrationRole
+            mgr = get_migration_manager()
+            state = await mgr.get_active_state(MigrationRole.SOURCE)
+            if state and state.get("ed25519_public_key"):
+                import base64
+                response.headers["X-Memlayer-Migration-Pubkey"] = (
+                    base64.urlsafe_b64encode(state["ed25519_public_key"]).decode()
+                )
+        except Exception:
+            pass  # Never break ingest for migration bookkeeping
+    return response
+
+
 app.include_router(ingest_router, prefix="/api")
 app.include_router(search_router, prefix="/api")
 app.include_router(files_router, prefix="/api")
 app.include_router(embeddings_router, prefix="/api")
+app.include_router(migration_router, prefix="/api")
 
 
 @app.get("/health")

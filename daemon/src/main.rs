@@ -1,5 +1,6 @@
 mod config;
 mod cursor;
+mod migration;
 mod parser;
 mod queue;
 mod sender;

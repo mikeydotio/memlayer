@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     index_llm_model: str = ""
     anthropic_api_key: str = ""
 
+    # Migration settings
+    migration_key_ttl_secs: int = 3600  # 1 hour initial TTL
+    migration_batch_size: int = 200
+    server_id: str = ""  # Auto-generated UUID if empty
+
     # Logging settings
     log_format: str = "text"  # "text" or "json"
     log_level: str = "INFO"

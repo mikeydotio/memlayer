@@ -275,4 +275,527 @@ impl Watcher {
 
         Ok(())
     }
+
+    /// Get a reference to the cursor manager (for testing).
+    #[cfg(test)]
+    pub fn cursor_manager(&self) -> &Arc<Mutex<CursorManager>> {
+        &self.cursor
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::matchers::{method, path};
+
+    use crate::config::Config;
+    use crate::cursor::CursorManager;
+    use crate::queue::OfflineQueue;
+    use crate::sender::Sender;
+
+    /// Build a Config pointing at the given mock server URL and watch/data dirs.
+    fn test_config(server_url: &str, watch_dir: &Path, data_dir: &Path) -> Config {
+        Config {
+            server_url: server_url.to_string(),
+            auth_token: "test-token".to_string(),
+            watch_path: watch_dir.to_path_buf(),
+            data_dir: data_dir.to_path_buf(),
+            machine_id: "test-machine".to_string(),
+            batch_size: 50,
+            flush_interval_secs: 5,
+            max_retry_delay_secs: 300,
+        }
+    }
+
+    /// Create a valid user-type JSONL line that the parser will accept.
+    fn make_user_line(session_id: &str, content: &str) -> String {
+        serde_json::json!({
+            "type": "user",
+            "sessionId": session_id,
+            "uuid": format!("uuid-{}", content.len()),
+            "timestamp": "2024-01-01T00:00:00Z",
+            "message": {
+                "role": "user",
+                "content": content
+            }
+        }).to_string()
+    }
+
+    /// Write a JSONL file with the given lines in a project subdirectory.
+    /// Returns the full path to the created file.
+    fn write_jsonl_file(watch_dir: &Path, project_name: &str, session: &str, lines: &[&str]) -> PathBuf {
+        let project_dir = watch_dir.join(project_name);
+        std::fs::create_dir_all(&project_dir).unwrap();
+        let file_path = project_dir.join(format!("{}.jsonl", session));
+        let mut f = std::fs::File::create(&file_path).unwrap();
+        for line in lines {
+            writeln!(f, "{}", line).unwrap();
+        }
+        file_path
+    }
+
+    /// Create a Watcher with all dependencies wired up against a mock server.
+    async fn setup_watcher(mock_url: &str) -> (Watcher, tempfile::TempDir, tempfile::TempDir) {
+        let watch_tmp = tempfile::tempdir().unwrap();
+        let data_tmp = tempfile::tempdir().unwrap();
+
+        let config = Arc::new(test_config(mock_url, watch_tmp.path(), data_tmp.path()));
+        let cursor = Arc::new(Mutex::new(CursorManager::new(data_tmp.path()).unwrap()));
+        let queue = Arc::new(Mutex::new(OfflineQueue::new(data_tmp.path()).unwrap()));
+        let sender = Arc::new(Sender::new(config.clone(), queue));
+
+        let watcher = Watcher::new(config, cursor, sender);
+        (watcher, watch_tmp, data_tmp)
+    }
+
+    /// Create a Watcher with a custom config modifier (e.g., small batch_size).
+    async fn setup_watcher_with_config(mock_url: &str, config_fn: impl FnOnce(&mut Config)) -> (Watcher, tempfile::TempDir, tempfile::TempDir) {
+        let watch_tmp = tempfile::tempdir().unwrap();
+        let data_tmp = tempfile::tempdir().unwrap();
+
+        let mut config = test_config(mock_url, watch_tmp.path(), data_tmp.path());
+        config_fn(&mut config);
+        let config = Arc::new(config);
+        let cursor = Arc::new(Mutex::new(CursorManager::new(data_tmp.path()).unwrap()));
+        let queue = Arc::new(Mutex::new(OfflineQueue::new(data_tmp.path()).unwrap()));
+        let sender = Arc::new(Sender::new(config.clone(), queue));
+
+        let watcher = Watcher::new(config, cursor, sender);
+        (watcher, watch_tmp, data_tmp)
+    }
+
+    fn mock_ingest_success() -> ResponseTemplate {
+        ResponseTemplate::new(200)
+            .set_body_json(serde_json::json!({
+                "accepted": 1,
+                "duplicates": 0,
+                "errors": 0
+            }))
+    }
+
+    // ── Test 1: process_file from offset 0 ──
+
+    #[tokio::test]
+    async fn test_process_file_from_offset_zero() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/ingest"))
+            .respond_with(mock_ingest_success())
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let (watcher, watch_tmp, _data_tmp) = setup_watcher(&mock_server.uri()).await;
+
+        let line = make_user_line("sess-1", "hello world");
+        let file_path = write_jsonl_file(watch_tmp.path(), "-home-test-project", "session1", &[&line]);
+
+        watcher.process_file(&file_path).await.unwrap();
+
+        // Verify cursor was advanced (should be line length + newline)
+        let cursor = watcher.cursor_manager().lock().await;
+        let offset = cursor.get_offset(&file_path.to_string_lossy());
+        assert_eq!(offset, (line.len() + 1) as u64);
+    }
+
+    // ── Test 2: process_file resumes from cursor ──
+
+    #[tokio::test]
+    async fn test_process_file_resumes_from_cursor() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/ingest"))
+            .respond_with(mock_ingest_success())
+            .expect(1)  // Only one call (for the second line)
+            .mount(&mock_server)
+            .await;
+
+        let (watcher, watch_tmp, _data_tmp) = setup_watcher(&mock_server.uri()).await;
+
+        let line1 = make_user_line("sess-1", "first message");
+        let line2 = make_user_line("sess-1", "second message");
+        let file_path = write_jsonl_file(
+            watch_tmp.path(), "-home-test-project", "session1",
+            &[&line1, &line2],
+        );
+
+        // Pre-set cursor to skip past line1 (line1 bytes + newline)
+        let first_line_offset = (line1.len() + 1) as u64;
+        {
+            let cursor = watcher.cursor_manager().lock().await;
+            cursor.set_offset(&file_path.to_string_lossy(), first_line_offset).unwrap();
+        }
+
+        watcher.process_file(&file_path).await.unwrap();
+
+        // Cursor should now be at end of file
+        let cursor = watcher.cursor_manager().lock().await;
+        let offset = cursor.get_offset(&file_path.to_string_lossy());
+        let expected = (line1.len() + 1 + line2.len() + 1) as u64;
+        assert_eq!(offset, expected);
+    }
+
+    // ── Test 3: File truncation resets cursor ──
+
+    #[tokio::test]
+    async fn test_file_truncation_resets_cursor() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/ingest"))
+            .respond_with(mock_ingest_success())
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let (watcher, watch_tmp, _data_tmp) = setup_watcher(&mock_server.uri()).await;
+
+        let line = make_user_line("sess-1", "after truncation");
+        let file_path = write_jsonl_file(watch_tmp.path(), "-home-test-project", "session1", &[&line]);
+
+        // Set cursor far beyond the file length (simulating truncation)
+        {
+            let cursor = watcher.cursor_manager().lock().await;
+            cursor.set_offset(&file_path.to_string_lossy(), 999999).unwrap();
+        }
+
+        watcher.process_file(&file_path).await.unwrap();
+
+        // Cursor should be set to end of file (re-read from 0)
+        let cursor = watcher.cursor_manager().lock().await;
+        let offset = cursor.get_offset(&file_path.to_string_lossy());
+        assert_eq!(offset, (line.len() + 1) as u64);
+    }
+
+    // ── Test 4: Empty file ──
+
+    #[tokio::test]
+    async fn test_empty_file_no_errors() {
+        let mock_server = MockServer::start().await;
+        // No mock expectation — server should NOT be called
+        Mock::given(method("POST"))
+            .and(path("/ingest"))
+            .respond_with(mock_ingest_success())
+            .expect(0)
+            .mount(&mock_server)
+            .await;
+
+        let (watcher, watch_tmp, _data_tmp) = setup_watcher(&mock_server.uri()).await;
+
+        let project_dir = watch_tmp.path().join("-home-test-project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        let file_path = project_dir.join("empty.jsonl");
+        std::fs::File::create(&file_path).unwrap(); // 0-byte file
+
+        let result = watcher.process_file(&file_path).await;
+        assert!(result.is_ok());
+    }
+
+    // ── Test 5: Subagent file skipped ──
+
+    #[tokio::test]
+    async fn test_subagent_file_skipped() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/ingest"))
+            .respond_with(mock_ingest_success())
+            .expect(0)  // Should NOT be called
+            .mount(&mock_server)
+            .await;
+
+        let (watcher, watch_tmp, _data_tmp) = setup_watcher(&mock_server.uri()).await;
+
+        // Create a file under a subagents directory
+        let subagent_dir = watch_tmp.path().join("-home-test-project").join("subagents").join("sub1");
+        std::fs::create_dir_all(&subagent_dir).unwrap();
+        let file_path = subagent_dir.join("session.jsonl");
+        let line = make_user_line("sess-1", "subagent message");
+        {
+            let mut f = std::fs::File::create(&file_path).unwrap();
+            writeln!(f, "{}", line).unwrap();
+        }
+
+        let result = watcher.process_file(&file_path).await;
+        assert!(result.is_ok());
+
+        // Cursor should NOT have been set
+        let cursor = watcher.cursor_manager().lock().await;
+        let offset = cursor.get_offset(&file_path.to_string_lossy());
+        assert_eq!(offset, 0);
+    }
+
+    // ── Test 6: Batch splitting ──
+
+    #[tokio::test]
+    async fn test_batch_splitting_multiple_server_calls() {
+        let mock_server = MockServer::start().await;
+        // With batch_size=2 and 5 entries, we expect 3 server calls (2+2+1)
+        Mock::given(method("POST"))
+            .and(path("/ingest"))
+            .respond_with(mock_ingest_success())
+            .expect(3)
+            .mount(&mock_server)
+            .await;
+
+        let (watcher, watch_tmp, _data_tmp) = setup_watcher_with_config(
+            &mock_server.uri(),
+            |c| c.batch_size = 2,
+        ).await;
+
+        let lines: Vec<String> = (0..5).map(|i| make_user_line("sess-1", &format!("message {}", i))).collect();
+        let line_refs: Vec<&str> = lines.iter().map(|s| s.as_str()).collect();
+        let file_path = write_jsonl_file(watch_tmp.path(), "-home-test-project", "session1", &line_refs);
+
+        watcher.process_file(&file_path).await.unwrap();
+
+        // Cursor should be at end of file
+        let cursor = watcher.cursor_manager().lock().await;
+        let offset = cursor.get_offset(&file_path.to_string_lossy());
+        let expected: u64 = lines.iter().map(|l| l.len() as u64 + 1).sum();
+        assert_eq!(offset, expected);
+    }
+
+    // ── Test 7: Cursor not advanced on send_batch error ──
+    //
+    // send_batch returns Err only when BOTH the HTTP call and the offline queue
+    // fail simultaneously. The sender queues to SQLite on any HTTP error, and
+    // SQLite keeps its connection open via file descriptor, making it hard to
+    // break. Instead we test the *logical* path: when the server returns a 5xx
+    // error the entries are durably queued and the cursor advances (by design).
+    // We verify that by contrast, when a 4xx non-retryable error is returned
+    // (entries dropped by sender), the cursor STILL advances because process_file
+    // treats that as a successful "send" (entries were intentionally discarded).
+    //
+    // The "cursor doesn't advance" path is exercised when send_batch returns Err,
+    // which only happens when disk is full (queue write fails). We verify the
+    // intended behavior through two complementary tests:
+    //   7a: server 500 → entries queued → cursor advances (queue = durable)
+    //   7b: server unreachable + queue broken → cursor stays at 0
+
+    #[tokio::test]
+    async fn test_cursor_advances_when_entries_queued_on_500() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/ingest"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock_server)
+            .await;
+
+        let (watcher, watch_tmp, _data_tmp) = setup_watcher(&mock_server.uri()).await;
+
+        let line = make_user_line("sess-1", "queued data");
+        let file_path = write_jsonl_file(watch_tmp.path(), "-home-test-project", "session1", &[&line]);
+
+        watcher.process_file(&file_path).await.unwrap();
+
+        // Cursor SHOULD advance because entries were durably queued
+        let cursor = watcher.cursor_manager().lock().await;
+        let offset = cursor.get_offset(&file_path.to_string_lossy());
+        assert_eq!(offset, (line.len() + 1) as u64,
+            "Cursor should advance when entries are durably queued");
+    }
+
+    #[tokio::test]
+    async fn test_cursor_not_advanced_on_total_send_failure() {
+        // Create a queue backed by an in-memory database, then drop its table
+        // so enqueue fails with a SQL error.
+        let watch_tmp = tempfile::tempdir().unwrap();
+        let data_tmp = tempfile::tempdir().unwrap();
+
+        // Use a port where nothing listens so HTTP always fails
+        let config = Arc::new(test_config(
+            "http://127.0.0.1:1", watch_tmp.path(), data_tmp.path(),
+        ));
+        let cursor = Arc::new(Mutex::new(CursorManager::new(data_tmp.path()).unwrap()));
+
+        // Create queue normally, then destroy the table so writes fail
+        let queue = OfflineQueue::new(data_tmp.path()).unwrap();
+        // Drop the queue table so enqueue returns Err
+        {
+            let conn = rusqlite::Connection::open(data_tmp.path().join("queue.db")).unwrap();
+            conn.execute_batch("DROP TABLE queue").unwrap();
+        }
+        let queue = Arc::new(Mutex::new(queue));
+
+        let sender = Arc::new(Sender::new(config.clone(), queue));
+        let watcher = Watcher::new(config, cursor, sender);
+
+        let line = make_user_line("sess-1", "important data");
+        let file_path = write_jsonl_file(watch_tmp.path(), "-home-test-project", "session1", &[&line]);
+
+        let _ = watcher.process_file(&file_path).await;
+
+        // Cursor should NOT have advanced
+        let cursor_mgr = watcher.cursor_manager().lock().await;
+        let offset = cursor_mgr.get_offset(&file_path.to_string_lossy());
+        assert_eq!(offset, 0, "Cursor should not advance when send_batch fails");
+    }
+
+    // ── Test 8: Malformed line in middle ──
+
+    #[tokio::test]
+    async fn test_malformed_line_in_middle() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/ingest"))
+            .respond_with(mock_ingest_success())
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let (watcher, watch_tmp, _data_tmp) = setup_watcher(&mock_server.uri()).await;
+
+        let line1 = make_user_line("sess-1", "valid first");
+        let bad_line = "this is not valid json at all {{{";
+        let line3 = make_user_line("sess-1", "valid third");
+        let file_path = write_jsonl_file(
+            watch_tmp.path(), "-home-test-project", "session1",
+            &[&line1, bad_line, &line3],
+        );
+
+        let result = watcher.process_file(&file_path).await;
+        assert!(result.is_ok());
+
+        // Cursor should advance past ALL lines (including the bad one)
+        let cursor = watcher.cursor_manager().lock().await;
+        let offset = cursor.get_offset(&file_path.to_string_lossy());
+        let expected = (line1.len() + 1 + bad_line.len() + 1 + line3.len() + 1) as u64;
+        assert_eq!(offset, expected);
+    }
+
+    // ── Test 9: Cursor advances by exact byte count ──
+
+    #[tokio::test]
+    async fn test_cursor_advances_exact_byte_count() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/ingest"))
+            .respond_with(mock_ingest_success())
+            .mount(&mock_server)
+            .await;
+
+        let (watcher, watch_tmp, _data_tmp) = setup_watcher(&mock_server.uri()).await;
+
+        let line1 = make_user_line("sess-1", "abc");
+        let line2 = make_user_line("sess-1", "defgh");
+        let line3 = make_user_line("sess-1", "ijklmnop");
+
+        let file_path = write_jsonl_file(
+            watch_tmp.path(), "-home-test-project", "session1",
+            &[&line1, &line2, &line3],
+        );
+
+        watcher.process_file(&file_path).await.unwrap();
+
+        let cursor = watcher.cursor_manager().lock().await;
+        let offset = cursor.get_offset(&file_path.to_string_lossy());
+
+        // Each line contributes line.len() + 1 (for \n) to the offset
+        let expected_offset: u64 =
+            (line1.len() as u64 + 1) +
+            (line2.len() as u64 + 1) +
+            (line3.len() as u64 + 1);
+
+        assert_eq!(offset, expected_offset);
+
+        // Also verify against actual file size
+        let file_len = std::fs::metadata(&file_path).unwrap().len();
+        assert_eq!(offset, file_len);
+    }
+
+    // ── Test 10: initial_scan finds nested JSONL files ──
+
+    #[tokio::test]
+    async fn test_initial_scan_finds_nested_jsonl_files() {
+        let mock_server = MockServer::start().await;
+        // Expect 2 calls (one per file)
+        Mock::given(method("POST"))
+            .and(path("/ingest"))
+            .respond_with(mock_ingest_success())
+            .expect(2)
+            .mount(&mock_server)
+            .await;
+
+        let (watcher, watch_tmp, _data_tmp) = setup_watcher(&mock_server.uri()).await;
+
+        // Create two project directories with JSONL files (matches glob */*.jsonl)
+        let line1 = make_user_line("sess-1", "project A message");
+        let line2 = make_user_line("sess-2", "project B message");
+        write_jsonl_file(watch_tmp.path(), "-home-test-projectA", "session1", &[&line1]);
+        write_jsonl_file(watch_tmp.path(), "-home-test-projectB", "session2", &[&line2]);
+
+        let result = watcher.initial_scan().await;
+        assert!(result.is_ok());
+    }
+
+    // ── Test 11: initial_scan skips subagent files ──
+
+    #[tokio::test]
+    async fn test_initial_scan_skips_subagent_files() {
+        let mock_server = MockServer::start().await;
+        // Only 1 call expected (the non-subagent file)
+        Mock::given(method("POST"))
+            .and(path("/ingest"))
+            .respond_with(mock_ingest_success())
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let (watcher, watch_tmp, _data_tmp) = setup_watcher(&mock_server.uri()).await;
+
+        // Normal file (matches */*.jsonl glob)
+        let line1 = make_user_line("sess-1", "normal message");
+        write_jsonl_file(watch_tmp.path(), "-home-test-project", "session1", &[&line1]);
+
+        // Subagent file — the glob */*.jsonl won't match deep paths, but
+        // initial_scan also explicitly filters /subagents/ paths
+        let subagent_dir = watch_tmp.path().join("subagents");
+        std::fs::create_dir_all(&subagent_dir).unwrap();
+        let subagent_file = subagent_dir.join("sub.jsonl");
+        let line2 = make_user_line("sess-2", "subagent message");
+        {
+            let mut f = std::fs::File::create(&subagent_file).unwrap();
+            writeln!(f, "{}", line2).unwrap();
+        }
+
+        let result = watcher.initial_scan().await;
+        assert!(result.is_ok());
+    }
+
+    // ── Test 12: file with only blank lines — no server calls, cursor still advances ──
+
+    #[tokio::test]
+    async fn test_file_with_only_blank_lines() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/ingest"))
+            .respond_with(mock_ingest_success())
+            .expect(0)
+            .mount(&mock_server)
+            .await;
+
+        let (watcher, watch_tmp, _data_tmp) = setup_watcher(&mock_server.uri()).await;
+
+        let project_dir = watch_tmp.path().join("-home-test-project");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        let file_path = project_dir.join("blank.jsonl");
+        {
+            let mut f = std::fs::File::create(&file_path).unwrap();
+            writeln!(f).unwrap(); // blank line
+            writeln!(f, "   ").unwrap(); // whitespace-only line
+            writeln!(f).unwrap(); // another blank line
+        }
+
+        let result = watcher.process_file(&file_path).await;
+        assert!(result.is_ok());
+
+        // Cursor should still advance past the blank lines
+        let cursor = watcher.cursor_manager().lock().await;
+        let offset = cursor.get_offset(&file_path.to_string_lossy());
+        let file_len = std::fs::metadata(&file_path).unwrap().len();
+        assert_eq!(offset, file_len);
+    }
 }

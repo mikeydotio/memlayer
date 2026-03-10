@@ -103,6 +103,42 @@ async def _one_at_a_time_insert(pool, entries: list[IngestEntry]) -> tuple[list[
 
 @router.post("/ingest", response_model=IngestResponse)
 async def ingest(req: IngestRequest):
+    # Check if migration redirect is active — return 449 to redirect clients
+    try:
+        from ..migration_state import get_migration_manager
+        mgr = get_migration_manager()
+        if await mgr.is_redirecting():
+            redirect_info = await mgr.get_redirect_info()
+            if redirect_info:
+                import json
+                import base64
+                from fastapi.responses import JSONResponse
+                payload = json.dumps({
+                    "migration_id": str(redirect_info["migration_id"]),
+                    "redirect_url": redirect_info["peer_url"],
+                    "public_key": base64.urlsafe_b64encode(
+                        redirect_info["ed25519_public_key"]
+                    ).decode(),
+                }).encode()
+                signature = await mgr.sign_redirect(
+                    payload, redirect_info["ed25519_private_key"]
+                )
+                return JSONResponse(
+                    status_code=449,
+                    content={
+                        "migration_id": str(redirect_info["migration_id"]),
+                        "redirect_url": redirect_info["peer_url"],
+                        "signature": signature,
+                    },
+                    headers={
+                        "X-Memlayer-Migration-Pubkey": base64.urlsafe_b64encode(
+                            redirect_info["ed25519_public_key"]
+                        ).decode(),
+                    },
+                )
+    except Exception:
+        logger.warning("Migration redirect check failed", exc_info=True)
+
     if len(req.entries) > 200:
         raise HTTPException(400, "Max 200 entries per batch")
 
