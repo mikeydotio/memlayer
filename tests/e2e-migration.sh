@@ -344,7 +344,120 @@ else
 fi
 
 # Clean up the second migration
-curl_source -X POST "$SOURCE/migration/cancel" >/dev/null 2>&1 || true
+curl_source -X POST "$SOURCE/migration/cancel" -d '{}' >/dev/null 2>&1 || true
+curl_dest -X POST "$DEST/migration/cancel" -d '{}' >/dev/null 2>&1 || true
+
+# ---------------------------------------------------------------------------
+header "Error: Cancel with empty body"
+
+# Start a migration so there's something to cancel
+INIT3_RESP=$(curl_source -X POST "$SOURCE/migration/initiate")
+INIT3_STATE=$(echo "$INIT3_RESP" | grep -o '"state":"[^"]*"' | cut -d'"' -f4)
+
+if [ "$INIT3_STATE" = "INITIATED" ]; then
+    # Cancel with completely empty body (no -d flag, no Content-Type)
+    EMPTY_CANCEL_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+        -H "Authorization: Bearer $SOURCE_TOKEN" \
+        -X POST "$SOURCE/migration/cancel")
+    if [ "$EMPTY_CANCEL_CODE" = "200" ]; then
+        pass "Cancel with empty body returns 200 (not 500)"
+    else
+        fail "Expected 200 for cancel with empty body, got $EMPTY_CANCEL_CODE"
+    fi
+
+    # Also test with Content-Type: application/json but empty body
+    INIT4_RESP=$(curl_source -X POST "$SOURCE/migration/initiate")
+    EMPTY_JSON_CANCEL_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+        -H "Authorization: Bearer $SOURCE_TOKEN" \
+        -H "Content-Type: application/json" \
+        -X POST "$SOURCE/migration/cancel")
+    if [ "$EMPTY_JSON_CANCEL_CODE" = "200" ]; then
+        pass "Cancel with empty JSON body returns 200 (not 500)"
+    else
+        fail "Expected 200 for cancel with empty JSON body, got $EMPTY_JSON_CANCEL_CODE"
+    fi
+else
+    fail "Could not initiate migration for empty-body cancel test"
+fi
+
+curl_source -X POST "$SOURCE/migration/cancel" -d '{}' >/dev/null 2>&1 || true
+curl_dest -X POST "$DEST/migration/cancel" -d '{}' >/dev/null 2>&1 || true
+
+# ===========================================================================
+# Edge cases — migration with NULL fields and real data
+# ===========================================================================
+
+header "Edge: Migration preserves NULL optional fields"
+
+# Seed source with entries that have all optional fields NULL
+NULL_ENTRY_PAYLOAD=$(cat <<'ENDJSON'
+{
+  "entries": [{
+    "payload_hash": "null-fields-001",
+    "session_id": "null-fields-sess",
+    "message_type": "user",
+    "content_type": "user",
+    "raw_content": "Entry with all optional fields null",
+    "timestamp": "2026-01-20T10:00:00Z",
+    "project_path": "/test/null-fields",
+    "client_machine_id": "test-machine"
+  }]
+}
+ENDJSON
+)
+curl_source -X POST "$SOURCE/ingest" -d "$NULL_ENTRY_PAYLOAD" > /dev/null
+
+# Run a mini migration
+NULL_INIT=$(curl_source -X POST "$SOURCE/migration/initiate")
+NULL_MIG_ID=$(echo "$NULL_INIT" | grep -o '"migration_id":"[^"]*"' | cut -d'"' -f4)
+NULL_MIG_KEY=$(echo "$NULL_INIT" | grep -o '"migration_key":"[^"]*"' | cut -d'"' -f4)
+
+# Handshake
+curl -sf -H "Authorization: Bearer migration:$NULL_MIG_KEY" \
+    -H "Content-Type: application/json" \
+    -X POST "$SOURCE/migration/verify-destination" \
+    -d "{\"migration_key\":\"$NULL_MIG_KEY\",\"destination_url\":\"$SOURCE_INTERNAL\",\"embedding_provider\":\"openai\",\"embedding_model\":\"text-embedding-3-small\",\"embedding_dimensions\":1536}" > /dev/null
+
+# Start redirect + trigger transfer
+curl_source -X POST "$SOURCE/migration/start-redirect" \
+    -d "{\"migration_key\":\"$NULL_MIG_KEY\"}" > /dev/null
+
+curl_dest -X POST "$DEST/migration/receive/handshake" \
+    -d "{\"migration_id\":\"$NULL_MIG_ID\",\"source_url\":\"$SOURCE_INTERNAL\",\"migration_key\":\"$NULL_MIG_KEY\",\"config\":{}}" > /dev/null
+
+# Wait for completion
+NULL_ELAPSED=0
+NULL_DONE=""
+while [ $NULL_ELAPSED -lt 30 ]; do
+    NULL_STATUS=$(curl_dest "$DEST/migration/status" 2>/dev/null || echo '{}')
+    NULL_STATE=$(echo "$NULL_STATUS" | grep -o '"state":"[^"]*"' | cut -d'"' -f4)
+    if [ "$NULL_STATE" = "COMPLETE" ] || [ "$NULL_STATE" = "FAILED" ]; then
+        NULL_DONE="$NULL_STATE"
+        break
+    fi
+    sleep 1
+    NULL_ELAPSED=$((NULL_ELAPSED + 1))
+done
+
+if [ "$NULL_DONE" = "COMPLETE" ]; then
+    pass "NULL-fields migration completed"
+else
+    fail "NULL-fields migration did not complete (state=$NULL_STATE)"
+fi
+
+# Verify the null-fields entry exists on destination
+NULL_SESS=$(curl_dest "$DEST/sessions/null-fields-sess/summary?limit=10" 2>/dev/null || echo '{}')
+NULL_MSG_COUNT=$(echo "$NULL_SESS" | grep -o '"message_count":[0-9]*' | cut -d: -f2)
+
+if [ "$NULL_MSG_COUNT" = "1" ]; then
+    pass "NULL-fields entry migrated to destination"
+else
+    fail "Expected 1 message in null-fields session, got: $NULL_MSG_COUNT"
+fi
+
+# Clean up migrations
+curl_source -X POST "$SOURCE/migration/cancel" -d '{}' >/dev/null 2>&1 || true
+curl_dest -X POST "$DEST/migration/cancel" -d '{}' >/dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------------
 header "Results"

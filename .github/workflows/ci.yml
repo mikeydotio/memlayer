@@ -50,6 +50,9 @@ jobs:
       - name: Run E2E tests
         run: ./tests/e2e.sh
 
+      - name: Run edge case E2E tests
+        run: ./tests/e2e-edge-cases.sh
+
       - name: Tear down test stack
         if: always()
         run: docker compose -f docker-compose.test.yml down -v

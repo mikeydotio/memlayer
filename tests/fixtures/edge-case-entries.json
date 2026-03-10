@@ -1,0 +1,114 @@
+{
+  "entries": [
+    {
+      "payload_hash": "edge-001-empty-content",
+      "session_id": "edge-sess-001",
+      "message_type": "user",
+      "content_type": "user",
+      "raw_content": "",
+      "timestamp": "2026-01-15T10:00:00Z",
+      "project_path": "/home/test/project",
+      "client_machine_id": "test-machine"
+    },
+    {
+      "payload_hash": "edge-002-sql-metachar",
+      "session_id": "edge-sess-001",
+      "message_type": "user",
+      "content_type": "user",
+      "raw_content": "'; DROP TABLE memory_entries; -- SELECT * FROM claude_sessions WHERE 1=1 OR ''='",
+      "timestamp": "2026-01-15T10:00:01Z",
+      "project_path": "/home/test/project",
+      "client_machine_id": "test-machine"
+    },
+    {
+      "payload_hash": "edge-003-unicode-emoji",
+      "session_id": "edge-sess-001",
+      "message_type": "assistant",
+      "content_type": "text",
+      "raw_content": "Unicode test: \u2615 coffee \ud83d\ude80 rocket \ud83c\udf1f star \u2764\ufe0f heart \ud83d\udc4d thumbs up \u2728 sparkles. CJK: \u4f60\u597d\u4e16\u754c. Korean: \uc548\ub155\ud558\uc138\uc694. Arabic: \u0645\u0631\u062d\u0628\u0627. Math: \u222b\u2202f/\u2202x dx = F(x) + C. Box: \u250c\u2500\u2500\u2510\u2502OK\u2502\u2514\u2500\u2500\u2518",
+      "timestamp": "2026-01-15T10:00:02Z",
+      "project_path": "/home/test/project",
+      "client_machine_id": "test-machine"
+    },
+    {
+      "payload_hash": "edge-004-nested-json",
+      "session_id": "edge-sess-001",
+      "message_type": "user",
+      "content_type": "tool_result",
+      "raw_content": "{\"results\":[{\"id\":1,\"score\":0.95,\"content\":\"nested \\\"quotes\\\" and {braces}\"},{\"id\":2,\"score\":0.5,\"content\":\"more \\nnewlines\\nand\\ttabs\"}],\"meta\":{\"total\":2,\"query\":\"test \\\"query\\\"\"}}",
+      "timestamp": "2026-01-15T10:00:03Z",
+      "project_path": "/home/test/project",
+      "client_machine_id": "test-machine"
+    },
+    {
+      "payload_hash": "edge-005-backslash-escapes",
+      "session_id": "edge-sess-001",
+      "message_type": "assistant",
+      "content_type": "text",
+      "raw_content": "File paths: C:\\Users\\test\\file.txt and /home/user/\\.config/test\nRegex: ^[a-z]+\\d{3}$\nJSON string: {\"key\": \"value with \\\"quotes\\\"\"}\nNewlines: line1\\nline2\\nline3",
+      "timestamp": "2026-01-15T10:00:04Z",
+      "project_path": "/home/test/project",
+      "client_machine_id": "test-machine"
+    },
+    {
+      "payload_hash": "edge-006-code-block",
+      "session_id": "edge-sess-001",
+      "message_type": "assistant",
+      "content_type": "text",
+      "raw_content": "Here's a Python script:\n\n```python\nimport asyncio\nimport json\n\nasync def main():\n    data = {\"key\": \"value\", \"list\": [1, 2, 3]}\n    # Process data\n    for item in data[\"list\"]:\n        print(f\"Item: {item}\")\n    \n    result = await asyncio.gather(\n        fetch_data(\"url1\"),\n        fetch_data(\"url2\"),\n    )\n    return result\n\nif __name__ == \"__main__\":\n    asyncio.run(main())\n```\n\nAnd some SQL:\n\n```sql\nSELECT me.id, me.raw_content,\n       ts_rank(me.fts, websearch_to_tsquery('english', $1)) AS rank\nFROM memory_entries me\nWHERE me.fts @@ websearch_to_tsquery('english', $1)\nORDER BY rank DESC\nLIMIT 50;\n```",
+      "timestamp": "2026-01-15T10:00:05Z",
+      "project_path": "/home/test/project",
+      "client_machine_id": "test-machine"
+    },
+    {
+      "payload_hash": "edge-007-zero-width",
+      "session_id": "edge-sess-001",
+      "message_type": "user",
+      "content_type": "user",
+      "raw_content": "zero\u200bwidth\u200bjoiner\u200btest and zero\u200cwidth\u200cnon\u200cjoiner plus\u00a0non-breaking\u00a0spaces",
+      "timestamp": "2026-01-15T10:00:06Z",
+      "project_path": "/home/test/project",
+      "client_machine_id": "test-machine"
+    },
+    {
+      "payload_hash": "edge-008-html-tags",
+      "session_id": "edge-sess-001",
+      "message_type": "user",
+      "content_type": "user",
+      "raw_content": "<script>alert('xss')</script><img src=x onerror=alert(1)><div onclick=\"fetch('/api/ingest')\">click</div>",
+      "timestamp": "2026-01-15T10:00:07Z",
+      "project_path": "/home/test/project",
+      "client_machine_id": "test-machine"
+    },
+    {
+      "payload_hash": "edge-009-same-content-diff-hash-a",
+      "session_id": "edge-sess-001",
+      "message_type": "user",
+      "content_type": "user",
+      "raw_content": "This exact content appears twice with different hashes",
+      "timestamp": "2026-01-15T10:00:08Z",
+      "project_path": "/home/test/project",
+      "client_machine_id": "test-machine"
+    },
+    {
+      "payload_hash": "edge-009-same-content-diff-hash-b",
+      "session_id": "edge-sess-001",
+      "message_type": "user",
+      "content_type": "user",
+      "raw_content": "This exact content appears twice with different hashes",
+      "timestamp": "2026-01-15T10:00:09Z",
+      "project_path": "/home/test/project",
+      "client_machine_id": "test-machine"
+    },
+    {
+      "payload_hash": "edge-010-multiline-heavy",
+      "session_id": "edge-sess-002",
+      "message_type": "assistant",
+      "content_type": "text",
+      "raw_content": "# Troubleshooting Guide\n\n## Step 1: Check the Logs\n\n| Status | Meaning | Action |\n|--------|---------|--------|\n| OK | Working | None |\n| WARN | Degraded | Monitor |\n| ERROR | Failed | Restart |\n\n> **Note:** Always check the database first.\n\n### Common Errors\n\n1. `ConnectionRefused` \u2014 Database is down\n2. `TimeoutError` \u2014 Network issue\n3. `AuthenticationFailed` \u2014 Wrong token\n\n---\n\n## Step 2: Fix It\n\n- [ ] Restart the server\n- [ ] Check `.env` configuration\n- [x] Read the docs\n\n*Emphasis* and **bold** and ***bold italic*** and ~~strikethrough~~\n\n[Link](https://example.com) and ![Image](https://example.com/img.png)",
+      "timestamp": "2026-01-15T10:01:00Z",
+      "project_path": "/home/test/project",
+      "client_machine_id": "test-machine"
+    }
+  ]
+}

@@ -26,6 +26,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+async def _safe_json(request: Request) -> dict:
+    """Parse JSON body, returning {} on empty or invalid JSON."""
+    try:
+        return await request.json()
+    except Exception:
+        return {}
+
+
 # ── Source Server Endpoints ──
 
 
@@ -93,11 +101,7 @@ async def migration_status(request: Request):
 @router.post("/migration/cancel")
 async def cancel_migration(request: Request):
     """Cancel an active migration. Admin auth required."""
-    body = (
-        await request.json()
-        if request.headers.get("content-type") == "application/json"
-        else {}
-    )
+    body = await _safe_json(request)
     migration_id = body.get("migration_id")
 
     if not migration_id:
@@ -125,7 +129,7 @@ async def verify_destination(request: Request):
     Called by destination server to validate migration key and negotiate embeddings.
     Transitions source: INITIATED → KEY_EXCHANGED.
     """
-    body = await request.json()
+    body = await _safe_json(request)
     migration_key = body.get("migration_key")
     destination_url = body.get("destination_url")
     dest_embedding_provider = body.get("embedding_provider")
@@ -204,7 +208,7 @@ async def start_redirect(request: Request):
     Start redirecting ingest requests with HTTP 449.
     Transitions source: KEY_EXCHANGED → REDIRECTING.
     """
-    body = await request.json()
+    body = await _safe_json(request)
     migration_key = body.get("migration_key")
 
     if not migration_key:
@@ -703,7 +707,7 @@ async def receive_handshake(request: Request):
     """
     Accept migration config from source. Initialize destination state.
     """
-    body = await request.json()
+    body = await _safe_json(request)
     migration_id = body.get("migration_id")
     source_url = body.get("source_url")
     config_data = body.get("config", {})
@@ -757,7 +761,7 @@ async def receive_entries(request: Request):
     """
     Receive migrated entries (with optional embeddings if compatible).
     """
-    body = await request.json()
+    body = await _safe_json(request)
     migration_id = body.get("migration_id")
     entries = body.get("entries", [])
 
@@ -858,7 +862,7 @@ async def receive_entries(request: Request):
 @router.post("/migration/receive/files")
 async def receive_files(request: Request):
     """Receive response files from source server."""
-    body = await request.json()
+    body = await _safe_json(request)
     migration_id = body.get("migration_id")
     files = body.get("files", [])
 
@@ -919,7 +923,7 @@ async def receive_complete(request: Request):
     Verify transfer counts and complete migration.
     Transitions: TRANSFERRING → VERIFYING → COMPLETE.
     """
-    body = await request.json()
+    body = await _safe_json(request)
     migration_id = body.get("migration_id")
     expected_entries = body.get("expected_entries", 0)
     expected_files = body.get("expected_files", 0)
