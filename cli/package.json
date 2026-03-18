@@ -1,16 +1,18 @@
 {
-  "name": "claude-mem-mcp",
-  "version": "1.4.1",
+  "name": "memlayer-cli",
+  "version": "1.5.0",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/cli.js",
+  "bin": {
+    "memlayer": "dist/cli.js"
+  },
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/cli.js",
     "test": "vitest run"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.0",
-    "zod": "^3.25.0"
+    "commander": "^13.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

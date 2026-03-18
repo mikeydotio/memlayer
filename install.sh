@@ -61,8 +61,8 @@ else
 fi
 
 # Sanity check
-if [[ ! -f "$INSTALL_DIR/setup_client.sh" ]] || [[ ! -f "$INSTALL_DIR/mcp/package.json" ]]; then
-    error "Download appears incomplete — setup_client.sh or mcp/package.json missing"
+if [[ ! -f "$INSTALL_DIR/setup_client.sh" ]] || [[ ! -f "$INSTALL_DIR/cli/package.json" ]]; then
+    error "Download appears incomplete — setup_client.sh or cli/package.json missing"
     exit 1
 fi
 

@@ -37,7 +37,7 @@ To cancel at any point, click **Cancel Migration** on the source server's Migrat
 ### On the source server
 
 ```bash
-memlayer migrate
+memlayer-server migrate
 ```
 
 This initiates the migration, generates a migration key, and begins polling for status. The key is displayed in a box — copy it. You can press Ctrl+C to stop polling; the migration continues on the server.
@@ -88,7 +88,7 @@ The migration follows a state machine with these stages:
 
 6. **COMPLETE** — Migration is done. Daemons that received the 449 redirect drain their queued entries to the destination, then call `/migration/client-provision` to get permanent credentials (server URL + auth token). The daemon automatically rewrites its config files:
    - `~/.config/memlayer/env` (systemd environment)
-   - `~/.claude/settings.json` (MCP server configuration)
+   - `~/.claude/settings.json` (CLI configuration)
 
 ## Failure Recovery
 
@@ -105,7 +105,7 @@ Restart the destination server. The transfer worker resumes from the last saved 
 The initial key TTL is 1 hour. After a successful handshake (KEY_EXCHANGED), the TTL extends to 24 hours. If the key expires before handshake:
 
 1. Cancel the migration on the source (web UI or API)
-2. Re-initiate with `memlayer migrate` or the web UI to get a fresh key
+2. Re-initiate with `memlayer-server migrate` or the web UI to get a fresh key
 
 ### Transfer fails (FAILED state)
 
@@ -119,7 +119,7 @@ curl -X POST http://localhost:8420/api/migration/cancel \
   -d '{}'
 
 # Re-initiate
-memlayer migrate
+memlayer-server migrate
 ```
 
 ### Daemon cannot reach either server
@@ -167,6 +167,6 @@ Once migration is COMPLETE and you have verified the destination:
    ```
 3. Optionally take a final backup before removing the old server's data:
    ```bash
-   memlayer backup
+   memlayer-server backup
    ```
 4. The old server's database volume can be removed once you are confident the new server is operating correctly

@@ -48,8 +48,6 @@ fi
 
 if command -v claude &>/dev/null; then
     info "Claude CLI detected"
-else
-    warn "Claude CLI not found — MCP registration will be skipped"
 fi
 
 # ── Step 2: Daemon installation ─────────────────────────────────────
@@ -349,49 +347,31 @@ else
     echo "    $DAEMON_BIN"
 fi
 
-# ── Step 6: MCP tools ──────────────────────────────────────────────
-step 6 $TOTAL_STEPS "Setting up MCP tools"
+# ── Step 6: CLI binary ────────────────────────────────────────────
+step 6 $TOTAL_STEPS "Installing CLI binary"
 
-_mcp_status="skipped"
-if ! command -v claude &>/dev/null; then
-    warn "Claude CLI not found — skipping MCP setup"
-    echo "  Install: npm install -g @anthropic-ai/claude-code"
-    echo "  Then re-run this script to set up MCP tools."
-elif confirm "Set up MCP tools for Claude Code?" "y"; then
-    mcp_dir="$SCRIPT_DIR/mcp"
+CLI_BIN="$HOME/.local/bin/memlayer"
+cli_dir="$SCRIPT_DIR/cli"
+_cli_status="skipped"
 
-    # Check for existing registration
-    if claude mcp list 2>/dev/null | grep -q claude-memory; then
-        info "claude-memory MCP server already registered"
-        if confirm "Update?" "y"; then
-            claude mcp remove claude-memory --scope user 2>/dev/null || true
-        else
-            success "Keeping existing MCP registration"
-            _mcp_status="existing"
-            _skip_mcp=true
-        fi
+if [[ -f "$cli_dir/package.json" ]] && command -v node &>/dev/null; then
+    info "Building CLI..."
+    (cd "$cli_dir" && npm install --no-audit --no-fund && npx tsc)
+
+    # Remove old MCP registration if present
+    if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q claude-memory; then
+        info "Removing old MCP registration..."
+        claude mcp remove claude-memory --scope user 2>/dev/null || true
     fi
 
-    if [[ "${_skip_mcp:-}" != "true" ]]; then
-        info "Building MCP server..."
-        (cd "$mcp_dir" && npm install --no-audit --no-fund && npx tsc)
-
-        info "Registering with Claude Code..."
-        claude mcp add claude-memory --scope user \
-            -e MEMLAYER_SERVER_URL="$server_url" \
-            -e MEMLAYER_AUTH_TOKEN="$auth_token" \
-            -- node "$mcp_dir/dist/index.js"
-
-        if claude mcp list 2>/dev/null | grep -q claude-memory; then
-            success "MCP server registered"
-            _mcp_status="installed"
-        else
-            warn "MCP registration may have failed — verify with: claude mcp list"
-            _mcp_status="failed"
-        fi
-    fi
+    # Create symlink to CLI binary
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$cli_dir/dist/cli.js" "$CLI_BIN"
+    chmod +x "$CLI_BIN"
+    success "CLI installed to $CLI_BIN"
+    _cli_status="installed"
 else
-    info "Skipping MCP setup"
+    warn "Node.js not found — CLI will not be available"
 fi
 
 # ── Step 7: CLAUDE.md ──────────────────────────────────────────────
@@ -455,7 +435,7 @@ print_box \
     "Daemon:       $DAEMON_BIN" \
     "Service:      $_service_status" \
     "Server:       $server_url" \
-    "MCP tools:    $_mcp_status" \
+    "CLI:          $_cli_status" \
     "CLAUDE.md:    $_claudemd_status"
 
 echo

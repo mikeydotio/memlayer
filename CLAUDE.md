@@ -7,8 +7,8 @@ Claude Code Memory Layer — persistent, searchable conversation memory.
 - **Daemon** (`daemon/`): Rust binary that tails `~/.claude/projects/**/*.jsonl` and sends parsed entries to the server
 - **Server** (`server/`): Python/FastAPI API that ingests entries, generates embeddings, and serves hybrid search
 - **Database**: PostgreSQL 16 + pgvector, managed via Docker Compose
-- **MCP Server** (`mcp/`): TypeScript MCP server exposing `search_memory` and `get_session_summary` tools
-- **Skill** (`skill/memory.md`): Claude skill that teaches when to use memory tools
+- **CLI** (`cli/`): TypeScript CLI binary (`memlayer`) for searching and recalling conversations
+- **Skill** (`skill/memory.md`): Claude skill that teaches when to use the CLI
 
 ## Development
 
@@ -25,8 +25,8 @@ cd daemon && cargo build --release
 # Run daemon
 MEMLAYER_SERVER_URL="http://localhost:8420/api" MEMLAYER_AUTH_TOKEN="..." ./daemon/target/release/claude-mem-daemon
 
-# Build MCP server
-cd mcp && npm install && npx tsc
+# Build CLI
+cd cli && npm install && npx tsc
 
 # Run tests
 cd daemon && cargo test
@@ -36,8 +36,8 @@ cd daemon && cargo test
 
 | Variable | Component | Description |
 |----------|-----------|-------------|
-| `MEMLAYER_SERVER_URL` | daemon, mcp | Server API URL (default: `http://localhost:8420/api`) |
-| `MEMLAYER_AUTH_TOKEN` | daemon, mcp, server | Shared bearer token |
+| `MEMLAYER_SERVER_URL` | daemon, cli | Server API URL (default: `http://localhost:8420/api`) |
+| `MEMLAYER_AUTH_TOKEN` | daemon, cli, server | Shared bearer token |
 | `OPENAI_API_KEY` | server | For embedding generation |
 | `EMBEDDING_PROVIDER` | server | `openai` or `ollama` |
 | `POSTGRES_PASSWORD` | docker-compose | Database password |
@@ -60,5 +60,7 @@ cd daemon && cargo test
 - `server/src/indexing/` — Content detection, heuristic + LLM indexing
 - `daemon/src/parser.rs` — JSONL parsing and content extraction
 - `daemon/src/watcher.rs` — File watcher with cursor tracking
-- `mcp/src/index.ts` — MCP tool definitions (`search_memory`, `get_session_summary`, `read_memory_file`)
-- `mcp/src/file-cache.ts` — Local file cache for large response files
+- `cli/src/cli.ts` — CLI entrypoint (`memlayer search`, `memlayer session`, `memlayer read-file`, `memlayer status`)
+- `cli/src/cli-formatters.ts` — Output formatting (JSON and text modes)
+- `cli/src/api-client.ts` — HTTP client for the memlayer API
+- `cli/src/file-cache.ts` — Local file cache for large response files

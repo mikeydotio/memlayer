@@ -65,22 +65,25 @@ else
     info "No daemon binary found at $daemon_bin"
 fi
 
-# ── Step 3: Remove MCP registration ────────────────────────────────
-step 3 $TOTAL_STEPS "MCP registration"
+# ── Step 3: Remove CLI binary ─────────────────────────────────────
+step 3 $TOTAL_STEPS "CLI binary"
 
-if command -v claude &>/dev/null; then
-    if claude mcp list 2>/dev/null | grep -q claude-memory; then
-        if confirm "Remove claude-memory MCP registration?" "y"; then
-            claude mcp remove claude-memory --scope user 2>/dev/null || true
-            success "MCP registration removed"
-        else
-            info "Keeping MCP registration"
-        fi
+cli_bin="$HOME/.local/bin/memlayer"
+if [[ -f "$cli_bin" ]] || [[ -L "$cli_bin" ]]; then
+    if confirm "Remove memlayer CLI ($cli_bin)?" "y"; then
+        rm -f "$cli_bin"
+        success "CLI binary removed"
     else
-        info "No claude-memory MCP registration found"
+        info "Keeping CLI binary"
     fi
 else
-    info "Claude CLI not found — skipping MCP check"
+    info "No CLI binary found at $cli_bin"
+fi
+
+# Remove old MCP registration if still present
+if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q claude-memory; then
+    claude mcp remove claude-memory --scope user 2>/dev/null || true
+    info "Removed legacy MCP registration"
 fi
 
 # ── Step 4: Remove CLAUDE.md memory section ────────────────────────

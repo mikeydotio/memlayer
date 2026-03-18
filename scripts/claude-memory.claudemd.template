@@ -1,15 +1,15 @@
 ## Memory (Cross-Session Recall)
 
-The `claude-memory` MCP server provides tools to search past conversations:
-- `search_memory` — hybrid search across all past Claude Code conversations
-- `get_session_summary` — full chronological session history
-- `read_memory_file` — read specific line ranges from large response files
+The `memlayer` CLI provides commands to search past conversations:
+- `memlayer search "<query>"` — hybrid search across all past Claude Code conversations
+- `memlayer session <session-uuid>` — full chronological session history
+- `memlayer read-file <file-uuid> --start <n> --end <n>` — read specific line ranges from large response files
 
-Use `search_memory` when the user references past work, asks about prior
+Use `memlayer search` when the user references past work, asks about prior
 decisions, or encounters a problem that may have been solved before.
 Use keyword-rich queries for best results.
 
-When a search or session summary response is too large to return inline,
+When a search or session response is too large to return inline,
 the server offloads it to a file and returns a summary with a structural
-index. Use `read_memory_file` with the file_id and line range from the
+index. Use `memlayer read-file` with the file_id and line range from the
 index to retrieve the specific sections you need.

@@ -1,0 +1,16 @@
+# Cloud Dockerfile uses repo root as build context — exclude non-essential files
+.git
+.github
+daemon
+cli
+website
+specs
+scripts
+tests
+*.md
+*.sh
+.env
+.env.*
+fly.toml
+docker-compose.yml
+LICENSE

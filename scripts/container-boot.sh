@@ -16,8 +16,8 @@
 # What this does:
 #   1. Clones/updates the memlayer repo to ~/.memlayer
 #   2. Builds the daemon from source (or downloads binary)
-#   3. Builds the MCP server (npm install + tsc)
-#   4. Registers MCP tools with Claude Code
+#   3. Builds the CLI (npm install + tsc)
+#   4. Installs CLI binary to ~/.local/bin/memlayer
 #   5. Injects memory instructions into ~/.claude/CLAUDE.md
 #   6. Starts the daemon as a background process
 #
@@ -138,43 +138,37 @@ if [[ "$_need_daemon" == "true" ]]; then
     fi
 fi
 
-# ── Step 3: Build MCP server ──────────────────────────────────────
-mcp_dir="$INSTALL_DIR/mcp"
-if [[ -f "$mcp_dir/package.json" ]] && command -v node &>/dev/null; then
+# ── Step 3: Build CLI ─────────────────────────────────────────────
+cli_dir="$INSTALL_DIR/cli"
+if [[ -f "$cli_dir/package.json" ]] && command -v node &>/dev/null; then
     # Only rebuild if source changed
-    if [[ ! -f "$mcp_dir/dist/index.js" ]] || \
-       [[ "$mcp_dir/src/index.ts" -nt "$mcp_dir/dist/index.js" ]] || \
-       [[ "$mcp_dir/src/api-client.ts" -nt "$mcp_dir/dist/index.js" ]]; then
-        log "Building MCP server..."
-        (cd "$mcp_dir" && npm install --no-audit --no-fund -q 2>/dev/null && npx tsc 2>/dev/null)
-        log "MCP server built"
+    if [[ ! -f "$cli_dir/dist/cli.js" ]] || \
+       [[ "$cli_dir/src/cli.ts" -nt "$cli_dir/dist/cli.js" ]] || \
+       [[ "$cli_dir/src/api-client.ts" -nt "$cli_dir/dist/cli.js" ]]; then
+        log "Building CLI..."
+        (cd "$cli_dir" && npm install --no-audit --no-fund -q 2>/dev/null && npx tsc 2>/dev/null)
+        log "CLI built"
     else
-        log "MCP server up to date"
+        log "CLI up to date"
     fi
 else
-    err "Node.js not found — MCP tools will not be available"
+    err "Node.js not found — CLI will not be available"
 fi
 
-# ── Step 4: Register MCP tools with Claude Code ───────────────────
-if command -v claude &>/dev/null && [[ -f "$mcp_dir/dist/index.js" ]]; then
-    # Remove existing registration (idempotent update)
-    claude mcp remove claude-memory --scope user 2>/dev/null || true
+# ── Step 4: Install CLI binary ────────────────────────────────────
+if [[ -f "$cli_dir/dist/cli.js" ]]; then
+    ln -sf "$cli_dir/dist/cli.js" "$HOME/.local/bin/memlayer"
+    chmod +x "$HOME/.local/bin/memlayer"
+    log "CLI installed to ~/.local/bin/memlayer"
 
-    claude mcp add claude-memory --scope user \
-        -e MEMLAYER_SERVER_URL="$MEMLAYER_SERVER_URL" \
-        -e MEMLAYER_AUTH_TOKEN="$MEMLAYER_AUTH_TOKEN" \
-        -- node "$mcp_dir/dist/index.js" 2>/dev/null
-
-    if claude mcp list 2>/dev/null | grep -q claude-memory; then
-        log "MCP tools registered"
-    else
-        err "MCP registration may have failed"
+    # Remove old MCP registration if present
+    if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q claude-memory; then
+        claude mcp remove claude-memory --scope user 2>/dev/null || true
+        log "Old MCP registration removed"
     fi
-else
-    log "Skipping MCP registration (claude CLI not found)"
 fi
 
-# ── Step 5: Inject memory instructions into CLAUDE.md ─────────────
+# ── Step 5: Inject memory instructions into CLAUDE.md ────────────
 claudemd="$HOME/.claude/CLAUDE.md"
 template="$INSTALL_DIR/scripts/claude-memory.claudemd.template"
 mkdir -p "$HOME/.claude"
@@ -222,4 +216,4 @@ fi
 log "Memlayer client ready"
 log "  Server:  $MEMLAYER_SERVER_URL"
 log "  Daemon:  PID $daemon_pid"
-log "  MCP:     $(claude mcp list 2>/dev/null | grep -c claude-memory || echo 0) tool(s) registered"
+log "  CLI:     $(command -v memlayer &>/dev/null && echo installed || echo not found)"

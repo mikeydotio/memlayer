@@ -18,7 +18,7 @@ jobs:
         run: cargo test
         working-directory: daemon
 
-  test-mcp:
+  test-cli:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,9 +27,9 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install and test MCP server
-        run: npm ci && npx vitest run
-        working-directory: mcp
+      - name: Install and test CLI
+        run: npm ci && npx tsc && npx vitest run
+        working-directory: cli
 
   test-server:
     runs-on: ubuntu-latest

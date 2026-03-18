@@ -9,9 +9,9 @@ VERSION="1.0.0"
 
 usage() {
     cat <<EOF
-memlayer v${VERSION} — Claude Code Memory Layer
+memlayer-server v${VERSION} — Claude Code Memory Layer (Server Admin)
 
-Usage: memlayer <command> [options]
+Usage: memlayer-server <command> [options]
 
 Commands:
     setup           Interactive setup wizard (server or client)
@@ -22,7 +22,7 @@ Commands:
     verify          Check data integrity
     version         Show version info
 
-Run 'memlayer <command> --help' for details.
+Run 'memlayer-server <command> --help' for details.
 EOF
 }
 
@@ -94,7 +94,7 @@ cmd_backup() {
 cmd_restore() {
     local archive="${1:-}"
     if [[ -z "$archive" || ! -f "$archive" ]]; then
-        error "Usage: memlayer restore <backup-file.tar.gz>"
+        error "Usage: memlayer-server restore <backup-file.tar.gz>"
         exit 1
     fi
 
@@ -148,7 +148,7 @@ cmd_forget() {
     done
 
     if [[ -z "$session_id" && -z "$project_path" ]]; then
-        error "Usage: memlayer forget --session <id> | --project <path>"
+        error "Usage: memlayer-server forget --session <id> | --project <path>"
         exit 1
     fi
 
@@ -253,7 +253,7 @@ case "${1:-}" in
     restore)  shift; cmd_restore "$@" ;;
     forget)   shift; cmd_forget "$@" ;;
     verify)   shift; cmd_verify "$@" ;;
-    version)  echo "memlayer $VERSION" ;;
+    version)  echo "memlayer-server $VERSION" ;;
     -h|--help|"") usage ;;
     *)        error "Unknown command: $1"; usage; exit 1 ;;
 esac

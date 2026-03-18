@@ -12,6 +12,6 @@ export function formatLargeResponseNotice(ref: LargeResponseRef): string {
     `**Structural Index (line ranges):**`,
     ref.index,
     ``,
-    `Use \`read_memory_file\` with file_id="${ref.file_id}" and the line ranges above to read the sections you need.`,
+    `Use \`memlayer read-file ${ref.file_id} --start <start> --end <end>\` with the line ranges above to read the sections you need.`,
   ].join("\n");
 }
