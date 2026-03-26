@@ -334,13 +334,9 @@ echo
 info "Config saved to $STATE_FILE"
 info "Re-run this script at any time to update your deployment."
 echo
-info "To install the client on each machine where you use Claude Code:"
+info "To set up Memlayer for Claude Code on each client machine, run:"
 echo
-echo "  Step 1 — download memlayer:"
-echo "    curl -fsSL https://raw.githubusercontent.com/mikeydotio/memlayer/main/install.sh | bash"
-echo
-echo "  Step 2 — connect to your server:"
-echo "    ~/.memlayer/setup_client.sh --server-url $api_url --auth-token $auth_token"
+echo "  curl -fsSL https://raw.githubusercontent.com/mikeydotio/memlayer/main/install.sh | bash -s -- --server-url $api_url --auth-token $auth_token"
 echo
 info "To view logs:   flyctl logs -a $app_name"
 info "To redeploy:    ./deploy/fly-deploy.sh $app_name"

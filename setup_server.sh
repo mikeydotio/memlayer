@@ -179,6 +179,15 @@ fi
 # Read auth token from .env for display
 display_token="${MEMLAYER_AUTH_TOKEN:-}"
 
+# Determine the best reachable address for clients
+client_host="localhost"
+if [[ -n "${ts_ip:-}" ]]; then
+    client_host="$ts_ip"
+elif [[ -n "${MEMLAYER_BIND_ADDR:-}" && "${MEMLAYER_BIND_ADDR}" != "0.0.0.0" && "${MEMLAYER_BIND_ADDR}" != "127.0.0.1" ]]; then
+    client_host="$MEMLAYER_BIND_ADDR"
+fi
+client_api_url="http://${client_host}:8420/api"
+
 echo
 print_box \
     "Memlayer Server — Running" \
@@ -188,10 +197,16 @@ print_box \
     "API base:     http://localhost:8420/api" \
     "Embeddings:   $embed_status" \
     "" \
-    "Auth Token:   $(mask_token "$display_token")" \
-    "" \
-    "Next step: run setup_client.sh on each client machine." \
-    "Pass the auth token shown above when prompted."
+    "Auth Token:   $(mask_token "$display_token")"
 
-echo "  To view the full auth token: grep MEMLAYER_AUTH_TOKEN .env"
+echo
+info "To set up Memlayer for Claude Code on each client machine, run:"
+echo
+echo "  curl -fsSL https://raw.githubusercontent.com/mikeydotio/memlayer/main/install.sh | bash -s -- --server-url $client_api_url --auth-token $display_token"
+echo
+if [[ "$client_host" == "localhost" ]]; then
+    warn "Server address is localhost — replace with your server's IP or hostname"
+    echo "  if installing on a different machine."
+    echo
+fi
 echo

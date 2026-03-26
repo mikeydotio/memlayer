@@ -439,15 +439,61 @@ elif [[ "$_os" == "macos" ]] && launchctl list 2>/dev/null | grep -q io.memlayer
     _service_status="running (launchd)"
 fi
 
-print_box \
-    "Memlayer Client - Setup Complete" \
-    "" \
-    "Daemon:    ~/.local/bin/memlayer-daemon" \
-    "Service:   $_service_status" \
-    "Server:    $server_url" \
-    "CLI:       $_cli_status" \
-    "CLAUDE.md: $_claudemd_status"
+# Collect any issues
+_errors=()
+if [[ "$_service_status" == "not installed" ]]; then
+    _errors+=("Daemon service is not running — memory won't sync until started")
+fi
+if [[ "$_cli_status" != "installed" ]]; then
+    _errors+=("CLI not installed — 'memlayer search' will not be available")
+fi
+if [[ "${_claudemd_status:-skipped}" == "skipped" ]]; then
+    _errors+=("CLAUDE.md not configured — Claude won't know how to use memlayer")
+fi
 
+if [[ ${#_errors[@]} -eq 0 ]]; then
+    print_box \
+        "Memlayer Client — Setup Complete" \
+        "" \
+        "Daemon:    ~/.local/bin/memlayer-daemon" \
+        "Service:   $_service_status" \
+        "Server:    $server_url" \
+        "CLI:       $_cli_status" \
+        "CLAUDE.md: $_claudemd_status"
+else
+    print_box \
+        "Memlayer Client — Setup Complete (with warnings)" \
+        "" \
+        "Daemon:    ~/.local/bin/memlayer-daemon" \
+        "Service:   $_service_status" \
+        "Server:    $server_url" \
+        "CLI:       $_cli_status" \
+        "CLAUDE.md: $_claudemd_status"
+
+    echo
+    for _err in "${_errors[@]}"; do
+        warn "$_err"
+    done
+    echo
+    info "After resolving the above, re-run:"
+    echo "  ~/.memlayer/setup_client.sh --server-url $server_url --auth-token $auth_token"
+    echo
+fi
+
+echo
+info "Settings:"
+echo "  Config:     ~/.config/memlayer/env"
+echo "  Service:    $(
+    if [[ "$_os" == "linux" ]]; then
+        echo "~/.config/systemd/user/memlayer-daemon.service"
+    elif [[ "$_os" == "macos" ]]; then
+        echo "~/Library/LaunchAgents/io.memlayer.daemon.plist"
+    else
+        echo "(manual — see above)"
+    fi
+)"
+echo "  CLAUDE.md:  ~/.claude/CLAUDE.md"
+echo "  CLI binary: ~/.local/bin/memlayer"
 echo
 info "What happens next:"
 echo "  The daemon is now scanning your Claude Code conversation history"
