@@ -317,24 +317,27 @@ if [[ -n "$openai_key" ]]; then
     embed_status="OpenAI (text-embedding-3-small)"
 fi
 
+api_url="$server_url/api"
+
 echo
 print_box \
     "Memlayer Cloud — Deployed" \
     "" \
-    "Server URL:   $server_url" \
-    "Health:       $server_url/health" \
-    "API base:     $server_url/api" \
-    "Embeddings:   $embed_status" \
+    "Server:      $server_url" \
+    "API base:    $api_url" \
+    "Embeddings:  $embed_status" \
     "" \
-    "Auth Token:   $(mask_token "$auth_token")" \
-    "Full token:   $auth_token" \
-    "" \
-    "Next step: run setup_client.sh on each client machine." \
-    "Use server URL: $server_url/api"
+    "Auth Token:  $(mask_token "$auth_token")" \
+    "Full token:  $auth_token"
 
 echo
 info "Config saved to $STATE_FILE"
 info "Re-run this script at any time to update your deployment."
+echo
+info "To install the client on each machine where you use Claude Code:"
+echo
+echo "  curl -fsSL https://raw.githubusercontent.com/mikeydotio/memlayer/main/install.sh | bash"
+echo "  ~/.memlayer/setup_client.sh --server-url $api_url --auth-token $auth_token"
 echo
 info "To view logs:   flyctl logs -a $app_name"
 info "To redeploy:    ./deploy/fly-deploy.sh $app_name"
