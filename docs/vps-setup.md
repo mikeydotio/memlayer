@@ -46,7 +46,7 @@ curl http://localhost:8420/health
 | `MEMLAYER_BIND_ADDR` | No | Bind address (default: `0.0.0.0`). Set to your Tailscale IP for private access |
 | `RESPONSE_BUDGET_BYTES` | No | Response size budget (default: 200000 = 200KB) |
 
-For the full list, see the [README environment variables section](../README.md#server-variables).
+For the full list, see the [configuration reference](configuration.md#server-variables).
 
 ## Client Setup
 
