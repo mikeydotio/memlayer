@@ -214,6 +214,16 @@ if [[ -z "$auth_token" && -f "$SCRIPT_DIR/.env" ]]; then
 fi
 
 if [[ -z "$auth_token" ]]; then
+    if [[ ! -t 0 ]]; then
+        error "Auth token is required but stdin is not interactive (piped install)."
+        echo
+        echo "  Re-run with arguments:"
+        echo "    ~/.memlayer/setup_client.sh --server-url https://YOUR-APP.fly.dev/api --auth-token YOUR_TOKEN"
+        echo
+        echo "  Or run interactively:"
+        echo "    cd ~/.memlayer && ./setup_client.sh"
+        exit 1
+    fi
     while true; do
         auth_token=$(prompt_value "Paste the auth token from setup_server.sh output" "")
         if [[ -z "$auth_token" ]]; then

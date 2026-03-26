@@ -58,7 +58,9 @@ cd memlayer
   <h2>3. Install the Client</h2>
   <p>On each machine where you use Claude Code:</p>
   <pre><code>curl -fsSL https://raw.githubusercontent.com/mikeydotio/memlayer/main/install.sh | bash</code></pre>
-  <p>When prompted, enter the Fly.io server URL and auth token from the setup output.</p>
+  <p>Then run the client setup with the server URL and auth token from the cloud setup output:</p>
+  <pre><code>~/.memlayer/setup_client.sh --server-url https://YOUR-APP.fly.dev/api --auth-token YOUR_TOKEN</code></pre>
+  <p>Or run <code>~/.memlayer/setup_client.sh</code> without arguments for an interactive setup.</p>
 
   <h2>Architecture</h2>
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin:16px 0;font-family:'SF Mono','Cascadia Code',monospace;font-size:13px;line-height:1.7">
