@@ -18,12 +18,11 @@ async def init_pool() -> asyncpg.Pool:
             await register_vector(conn)
         except ValueError as e:
             if "unknown type" in str(e) and "vector" in str(e):
-                raise RuntimeError(
-                    "pgvector extension is not enabled in the database. "
-                    "Enable it in your Supabase dashboard: Database → Extensions → enable 'vector'. "
-                    "Then restart the server."
-                ) from e
-            raise
+                # Supabase installs extensions in the 'extensions' schema
+                logger.info("vector type not in public schema, trying extensions schema (Supabase)")
+                await register_vector(conn, schema="extensions")
+            else:
+                raise
 
     try:
         pool = await asyncpg.create_pool(
