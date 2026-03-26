@@ -1,0 +1,111 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+<Base title="Cloud Setup" description="Deploy Memlayer to the cloud with Supabase and Fly.io">
+<main class="container" style="padding-top:48px;padding-bottom:60px;max-width:700px">
+  <h1 style="font-size:32px">Cloud Setup</h1>
+  <p style="color:var(--text-dim)">Deploy Memlayer to <strong>Supabase</strong> (database) + <strong>Fly.io</strong> (server) for a fully cloud-hosted stack. No Docker or VPS management needed.</p>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin:24px 0">
+    <strong>Cost:</strong> Free tier covers 1-10 users. Supabase Pro ($25/mo) + Fly.io (~$2/mo) scales to hundreds.
+  </div>
+
+  <h2>Prerequisites</h2>
+  <ul style="color:var(--text-dim);padding-left:20px;margin-bottom:24px">
+    <li>A <a href="https://supabase.com">Supabase</a> account (free tier works)</li>
+    <li>A <a href="https://fly.io">Fly.io</a> account (free tier works)</li>
+    <li>The <code>flyctl</code> CLI installed and authenticated</li>
+    <li>An OpenAI API key (optional, for vector embeddings)</li>
+  </ul>
+
+  <h2>1. Create a Supabase Project</h2>
+  <ol style="color:var(--text-dim);padding-left:20px;margin-bottom:24px">
+    <li>Go to <a href="https://supabase.com/dashboard">supabase.com/dashboard</a> and create a new project</li>
+    <li>Choose a region close to where you'll deploy Fly.io</li>
+    <li>Set a strong database password (the setup script won't need it separately)</li>
+    <li>Wait for the project to finish provisioning</li>
+  </ol>
+
+  <h3>Enable Required Extensions</h3>
+  <p>In your Supabase dashboard, go to <strong>Database → Extensions</strong> and enable:</p>
+  <ul style="color:var(--text-dim);padding-left:20px;margin-bottom:24px">
+    <li><code>vector</code> — pgvector for embedding similarity search</li>
+    <li><code>pg_trgm</code> — trigram indexes for full-text search</li>
+  </ul>
+
+  <h3>Get the Connection String</h3>
+  <p>Go to <strong>Settings → Database → Connection string → URI</strong>.</p>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin:16px 0">
+    <strong>Important:</strong> Use the <strong>direct connection</strong> (port 5432), not the pooled connection (port 6543). Memlayer uses asyncpg with prepared statements, which requires a direct PostgreSQL connection.
+  </div>
+
+  <h2>2. Run the Setup Script</h2>
+  <p>Clone the repo and run the cloud setup:</p>
+  <pre><code>git clone https://github.com/mikeydotio/memlayer.git
+cd memlayer
+./setup_cloud_hosted.sh</code></pre>
+  <p>The script will:</p>
+  <ul style="color:var(--text-dim);padding-left:20px;margin-bottom:24px">
+    <li>Verify flyctl is installed and authenticated</li>
+    <li>Prompt for your Supabase connection string</li>
+    <li>Generate a secure auth token</li>
+    <li>Optionally validate your OpenAI API key</li>
+    <li>Deploy the server to Fly.io</li>
+    <li>Wait for the health check to pass</li>
+  </ul>
+
+  <h2>3. Install the Client</h2>
+  <p>On each machine where you use Claude Code:</p>
+  <pre><code>curl -fsSL https://raw.githubusercontent.com/mikeydotio/memlayer/main/install.sh | bash</code></pre>
+  <p>When prompted, enter the Fly.io server URL and auth token from the setup output.</p>
+
+  <h2>Architecture</h2>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin:16px 0;font-family:'SF Mono','Cascadia Code',monospace;font-size:13px;line-height:1.7">
+    Client (daemon + MCP)<br>
+    &nbsp;&nbsp;↓ HTTPS<br>
+    Fly.io (FastAPI server)<br>
+    &nbsp;&nbsp;↓ Direct PostgreSQL<br>
+    Supabase (pgvector database)
+  </div>
+  <ul style="color:var(--text-dim);padding-left:20px;margin-bottom:24px">
+    <li><strong>Fly.io</strong> runs the FastAPI server with in-process embedding and eviction workers</li>
+    <li><strong>Supabase</strong> hosts PostgreSQL with pgvector for hybrid search</li>
+    <li>Response files are stored on a Fly.io persistent volume</li>
+    <li>Fly machines scale to zero when idle and wake on request</li>
+  </ul>
+
+  <h2>Managing Your Deployment</h2>
+  <h3>View logs</h3>
+  <pre><code>flyctl logs -a YOUR_APP_NAME</code></pre>
+
+  <h3>Redeploy after updates</h3>
+  <pre><code>cd memlayer
+git pull
+./deploy/fly-deploy.sh YOUR_APP_NAME</code></pre>
+
+  <h3>Update secrets</h3>
+  <pre><code>flyctl secrets set OPENAI_API_KEY=sk-... -a YOUR_APP_NAME</code></pre>
+
+  <h3>Scale up</h3>
+  <pre><code># Increase memory
+flyctl scale memory 512 -a YOUR_APP_NAME
+
+# Keep machine always running (no scale-to-zero)
+flyctl scale count 1 -a YOUR_APP_NAME</code></pre>
+
+  <h2>Troubleshooting</h2>
+  <h3>Health check fails</h3>
+  <pre><code>flyctl logs -a YOUR_APP_NAME</code></pre>
+  <p>Common causes: wrong connection string, extensions not enabled, or Supabase project paused (free tier pauses after 1 week of inactivity).</p>
+
+  <h3>Prepared statement errors</h3>
+  <p>You're using the pooled connection (port 6543) instead of direct (port 5432). Update the secret:</p>
+  <pre><code>flyctl secrets set DATABASE_URL="postgresql://..." -a YOUR_APP_NAME</code></pre>
+
+  <h3>Slow first request</h3>
+  <p>Fly machines scale to zero after idle periods. The first request wakes the machine (~2-5 seconds). Set <code>min_machines_running = 1</code> in <code>fly.toml</code> to keep it always on (~$1.94/mo).</p>
+
+  <h3>Supabase project paused</h3>
+  <p>Free tier Supabase projects pause after 1 week of inactivity. Go to your dashboard and click "Restore" to unpause. Upgrade to Pro ($25/mo) to prevent pausing.</p>
+</main>
+</Base>
