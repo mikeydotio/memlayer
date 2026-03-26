@@ -168,7 +168,18 @@ health_url="${health_url%/}/health"
 # Normalize: handle cases like http://host:8420/api → http://host:8420/health
 health_url=$(echo "$server_url" | sed 's|/api$||; s|/api/$||; s|/*$||')/health
 
-if curl -sf --max-time 5 "$health_url" &>/dev/null; then
+# Try twice — first attempt may wake a sleeping instance (e.g. Fly.io)
+_server_ok=false
+for _attempt in 1 2; do
+    if curl -sf --max-time 10 "$health_url" &>/dev/null; then
+        _server_ok=true
+        break
+    fi
+    [[ $_attempt -eq 1 ]] && info "Waiting for server to wake up..."
+    sleep 3
+done
+
+if $_server_ok; then
     success "Server is reachable"
 else
     warn "Could not reach server at $health_url"
@@ -253,6 +264,42 @@ else
     fi
 fi
 
+# ── Crontab fallback helper ─────────────────────────────────────────
+_install_crontab_service() {
+    local cron_cmd="MEMLAYER_SERVER_URL=\"$server_url\" MEMLAYER_AUTH_TOKEN=\"$auth_token\" $DAEMON_BIN"
+    local cron_line="@reboot $cron_cmd"
+
+    if ! command -v crontab &>/dev/null; then
+        error "Neither systemctl nor crontab found — cannot install background service"
+        echo
+        echo "  Install cron (e.g. 'apt install cron') and re-run, or start the daemon manually:"
+        echo "    $cron_cmd"
+        return 1
+    fi
+
+    # Check for existing entry
+    if crontab -l 2>/dev/null | grep -qF "memlayer-daemon"; then
+        info "Existing memlayer crontab entry found"
+        # Replace it
+        crontab -l 2>/dev/null | grep -vF "memlayer-daemon" | { cat; echo "$cron_line"; } | crontab -
+        success "Updated crontab @reboot entry"
+    else
+        ( crontab -l 2>/dev/null; echo "$cron_line" ) | crontab -
+        success "Installed crontab @reboot entry"
+    fi
+
+    # Start the daemon now
+    if pgrep -f memlayer-daemon &>/dev/null; then
+        info "Daemon already running — restarting"
+        pkill -f memlayer-daemon || true
+        sleep 1
+    fi
+    mkdir -p "$HOME/.local/share/memlayer"
+    MEMLAYER_SERVER_URL="$server_url" MEMLAYER_AUTH_TOKEN="$auth_token" \
+        nohup "$DAEMON_BIN" >> "$HOME/.local/share/memlayer/daemon.log" 2>&1 &
+    success "Daemon started (PID $!)"
+}
+
 # ── Step 5: Background service ──────────────────────────────────────
 step 5 $TOTAL_STEPS "Setting up background service"
 
@@ -313,12 +360,8 @@ ENVEOF
             fi
         fi
     else
-        warn "systemctl not found — skipping service installation"
-        echo
-        info "To run manually:"
-        echo "    MEMLAYER_SERVER_URL=\"$server_url\" \\"
-        echo "    MEMLAYER_AUTH_TOKEN=\"$auth_token\" \\"
-        echo "    $DAEMON_BIN"
+        warn "systemctl not found — falling back to crontab @reboot"
+        _install_crontab_service
     fi
 
 elif [[ "$_os" == "macos" ]]; then
@@ -358,12 +401,8 @@ elif [[ "$_os" == "macos" ]]; then
         fi
     fi
 else
-    warn "Unknown OS — skipping service installation"
-    echo
-    info "To run manually:"
-    echo "    MEMLAYER_SERVER_URL=\"$server_url\" \\"
-    echo "    MEMLAYER_AUTH_TOKEN=\"$auth_token\" \\"
-    echo "    $DAEMON_BIN"
+    warn "Unknown OS — falling back to crontab @reboot"
+    _install_crontab_service
 fi
 
 # ── Step 6: CLI binary ────────────────────────────────────────────
@@ -442,10 +481,16 @@ echo
 
 # Determine service status
 _service_status="not installed"
-if [[ "$_os" == "linux" ]] && systemctl --user is-active memlayer-daemon &>/dev/null 2>&1; then
+if [[ "$_os" == "linux" ]] && command -v systemctl &>/dev/null && systemctl --user is-active memlayer-daemon &>/dev/null 2>&1; then
     _service_status="running (systemd)"
 elif [[ "$_os" == "macos" ]] && launchctl list 2>/dev/null | grep -q io.memlayer.daemon; then
     _service_status="running (launchd)"
+elif pgrep -f memlayer-daemon &>/dev/null; then
+    if crontab -l 2>/dev/null | grep -qF "memlayer-daemon"; then
+        _service_status="running (crontab @reboot)"
+    else
+        _service_status="running (manual)"
+    fi
 fi
 
 # Collect any issues
