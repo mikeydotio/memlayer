@@ -25,6 +25,8 @@ In your Supabase dashboard, go to **Database > Extensions** and enable:
 - `vector` — pgvector for embedding similarity search
 - `pg_trgm` — trigram indexes for full-text search
 
+> Supabase installs these in its `extensions` schema rather than `public`. The Memlayer server detects this automatically — no extra configuration needed.
+
 ### Get the Connection String
 
 Go to **Settings > Database > Connection string > URI**.

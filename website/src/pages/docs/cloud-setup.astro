@@ -32,6 +32,7 @@ import Base from '../../layouts/Base.astro';
     <li><code>vector</code> — pgvector for embedding similarity search</li>
     <li><code>pg_trgm</code> — trigram indexes for full-text search</li>
   </ul>
+  <p style="color:var(--text-dim);font-size:14px">Supabase installs these in its <code>extensions</code> schema rather than <code>public</code>. The Memlayer server detects this automatically &mdash; no extra configuration needed.</p>
 
   <h3>Get the Connection String</h3>
   <p>Go to <strong>Settings → Database → Connection string → URI</strong>.</p>
