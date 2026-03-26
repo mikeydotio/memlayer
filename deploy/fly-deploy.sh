@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Deploy Memlayer server to Fly.io
 # Usage: ./deploy/fly-deploy.sh [APP_NAME]
+# Safe to re-run: all steps check for existing state before acting.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,10 +18,24 @@ if ! command -v flyctl &>/dev/null; then
     exit 1
 fi
 
+if ! flyctl auth whoami &>/dev/null 2>&1; then
+    echo "Error: flyctl is not authenticated."
+    echo "  Run: flyctl auth login"
+    exit 1
+fi
+
 # ── Create app if it doesn't exist ────────────────────────────────
 if ! flyctl apps list --json 2>/dev/null | grep -q "\"$APP_NAME\""; then
     echo "Creating Fly app: $APP_NAME"
-    flyctl apps create "$APP_NAME" --machines
+    if ! flyctl apps create "$APP_NAME" --machines; then
+        echo
+        echo "Error: Failed to create Fly app."
+        echo "  If you see a billing error, add billing info at:"
+        echo "  https://fly.io/dashboard → Billing"
+        echo
+        echo "  Then re-run: ./deploy/fly-deploy.sh $APP_NAME"
+        exit 1
+    fi
 else
     echo "Fly app '$APP_NAME' already exists"
 fi
@@ -32,16 +47,21 @@ sed -i "s/^app = .*/app = \"$APP_NAME\"/" fly.toml
 if ! flyctl volumes list -a "$APP_NAME" --json 2>/dev/null | grep -q '"response_files"'; then
     REGION=$(grep 'primary_region' fly.toml | sed 's/.*= *"//' | sed 's/".*//')
     echo "Creating persistent volume in $REGION"
-    flyctl volumes create response_files \
+    if ! flyctl volumes create response_files \
         --app "$APP_NAME" \
         --region "$REGION" \
         --size 1 \
-        --yes
+        --yes; then
+        echo
+        echo "Error: Failed to create volume."
+        echo "  Re-run to retry: ./deploy/fly-deploy.sh $APP_NAME"
+        exit 1
+    fi
 else
     echo "Volume 'response_files' already exists"
 fi
 
-# ── Set secrets (only if not already set) ─────────────────────────
+# ── Set secrets (only from env vars that are set) ─────────────────
 _set_secrets() {
     local secrets_to_set=()
 
@@ -77,7 +97,14 @@ _set_secrets
 
 # ── Deploy ────────────────────────────────────────────────────────
 echo "Deploying to Fly.io..."
-flyctl deploy --app "$APP_NAME" --remote-only
+if ! flyctl deploy --app "$APP_NAME" --remote-only; then
+    echo
+    echo "Error: Deployment failed."
+    echo
+    echo "  Check the build output above for details."
+    echo "  To retry: ./deploy/fly-deploy.sh $APP_NAME"
+    exit 1
+fi
 
 echo
 echo "Deployed! Your server is at: https://$APP_NAME.fly.dev"

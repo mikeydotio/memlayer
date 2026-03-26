@@ -7,7 +7,7 @@ Deploy Memlayer to **Supabase** (database) + **Fly.io** (server) for a fully clo
 ## Prerequisites
 
 - A [Supabase](https://supabase.com) account (free tier works)
-- A [Fly.io](https://fly.io) account (free tier works)
+- A [Fly.io](https://fly.io) account with **billing info added** (free tier works, but Fly requires a credit card on file before deploying machines — add it at [fly.io/dashboard](https://fly.io/dashboard) → Billing)
 - The `flyctl` CLI installed and authenticated
 - An OpenAI API key (optional, for vector embeddings)
 
@@ -90,6 +90,26 @@ flyctl scale memory 512 -a YOUR_APP_NAME
 # Keep machine always running (no scale-to-zero)
 flyctl scale count 1 -a YOUR_APP_NAME
 ```
+
+## Re-running after failure
+
+The setup script saves your configuration (auth token, database URL, app name) to `~/.config/memlayer/cloud.env`. If the script fails at any step, just run it again — it will detect your saved config and offer to reuse it, so you won't end up with mismatched tokens or duplicate resources.
+
+```bash
+# Re-run the full setup (reuses saved config)
+./setup_cloud_hosted.sh
+
+# Or retry just the deploy step directly
+source ~/.config/memlayer/cloud.env
+./deploy/fly-deploy.sh $MEMLAYER_APP_NAME
+```
+
+Common failure scenarios:
+
+- **Billing not set up** → Add billing at [fly.io/dashboard](https://fly.io/dashboard) → Billing, then re-run
+- **Extensions not enabled** → Enable `vector` and `pg_trgm` in Supabase, then re-run
+- **Wrong connection string** → Re-run and choose "no" when asked to keep the existing string
+- **Deploy failed mid-build** → Re-run (app/volume already exist and will be reused)
 
 ## Troubleshooting
 

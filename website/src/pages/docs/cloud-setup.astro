@@ -13,7 +13,7 @@ import Base from '../../layouts/Base.astro';
   <h2>Prerequisites</h2>
   <ul style="color:var(--text-dim);padding-left:20px;margin-bottom:24px">
     <li>A <a href="https://supabase.com">Supabase</a> account (free tier works)</li>
-    <li>A <a href="https://fly.io">Fly.io</a> account (free tier works)</li>
+    <li>A <a href="https://fly.io">Fly.io</a> account with <strong>billing info added</strong> (free tier works, but Fly requires a credit card before deploying machines &mdash; add it at <a href="https://fly.io/dashboard">fly.io/dashboard</a> &rarr; Billing)</li>
     <li>The <code>flyctl</code> CLI installed and authenticated</li>
     <li>An OpenAI API key (optional, for vector embeddings)</li>
   </ul>
@@ -92,6 +92,22 @@ flyctl scale memory 512 -a YOUR_APP_NAME
 
 # Keep machine always running (no scale-to-zero)
 flyctl scale count 1 -a YOUR_APP_NAME</code></pre>
+
+  <h2>Re-running after failure</h2>
+  <p>The setup script saves your configuration (auth token, database URL, app name) to <code>~/.config/memlayer/cloud.env</code>. If it fails at any step, just run it again &mdash; it will detect your saved config and offer to reuse it.</p>
+  <pre><code># Re-run the full setup (reuses saved config)
+./setup_cloud_hosted.sh
+
+# Or retry just the deploy step
+source ~/.config/memlayer/cloud.env
+./deploy/fly-deploy.sh $MEMLAYER_APP_NAME</code></pre>
+  <p>Common failure scenarios:</p>
+  <ul style="color:var(--text-dim);padding-left:20px;margin-bottom:24px">
+    <li><strong>Billing not set up</strong> &mdash; Add billing at <a href="https://fly.io/dashboard">fly.io/dashboard</a> &rarr; Billing, then re-run</li>
+    <li><strong>Extensions not enabled</strong> &mdash; Enable <code>vector</code> and <code>pg_trgm</code> in Supabase, then re-run</li>
+    <li><strong>Wrong connection string</strong> &mdash; Re-run and choose "no" when asked to keep the existing string</li>
+    <li><strong>Deploy failed mid-build</strong> &mdash; Re-run (app/volume already exist and will be reused)</li>
+  </ul>
 
   <h2>Troubleshooting</h2>
   <h3>Health check fails</h3>
