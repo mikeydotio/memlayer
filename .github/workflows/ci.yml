@@ -40,7 +40,7 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - name: Run server unit tests
-        run: uv pip install --system ".[dev]" && pytest
+        run: uv sync --extra dev && uv run pytest
         working-directory: server
 
       - name: Build and start test stack
