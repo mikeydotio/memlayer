@@ -442,11 +442,11 @@ fi
 print_box \
     "Memlayer Client — Setup Complete" \
     "" \
-    "Daemon:       $DAEMON_BIN" \
-    "Service:      $_service_status" \
-    "Server:       $server_url" \
-    "CLI:          $_cli_status" \
-    "CLAUDE.md:    $_claudemd_status"
+    "Daemon:     ~/.local/bin/memlayer-daemon" \
+    "Service:    $_service_status" \
+    "Server:     $server_url" \
+    "CLI:        $_cli_status" \
+    "CLAUDE.md:  $_claudemd_status"
 
 echo
 success "Start a new Claude Code session and ask: \"Do you remember what we worked on?\""
