@@ -259,57 +259,66 @@ step 5 $TOTAL_STEPS "Setting up background service"
 _os=$(detect_os)
 
 if [[ "$_os" == "linux" ]]; then
-    # systemd
-    service_dir="$HOME/.config/systemd/user"
-    service_path="$service_dir/memlayer-daemon.service"
-
-    if systemctl --user is-active memlayer-daemon &>/dev/null; then
-        info "Daemon service is already running"
-        if ! confirm "Update service?" "y"; then
-            success "Keeping existing service"
-            _skip_service=true
-        else
-            systemctl --user stop memlayer-daemon || true
-        fi
-    fi
-
-    if [[ "${_skip_service:-}" != "true" ]]; then
-        if confirm "Install systemd service for automatic startup?" "y"; then
-            # Write secrets to env file (not embedded in service unit)
-            env_dir="$HOME/.config/memlayer"
-            env_file="$env_dir/env"
-            mkdir -p "$env_dir"
-            cat > "$env_file" <<ENVEOF
+    # Always write credentials env file
+    env_dir="$HOME/.config/memlayer"
+    env_file="$env_dir/env"
+    mkdir -p "$env_dir"
+    cat > "$env_file" <<ENVEOF
 MEMLAYER_AUTH_TOKEN=$auth_token
 MEMLAYER_SERVER_URL=$server_url
 ENVEOF
-            chmod 600 "$env_file"
-            success "Credentials written to $env_file"
+    chmod 600 "$env_file"
+    success "Credentials written to $env_file"
 
-            mkdir -p "$service_dir"
-            sed \
-                -e "s|{{DAEMON_PATH}}|$DAEMON_BIN|g" \
-                "$SCRIPT_DIR/scripts/memlayer-daemon.service.template" > "$service_path"
+    if command -v systemctl &>/dev/null; then
+        # systemd
+        service_dir="$HOME/.config/systemd/user"
+        service_path="$service_dir/memlayer-daemon.service"
 
-            systemctl --user daemon-reload
-            systemctl --user enable --now memlayer-daemon
-            success "systemd service installed and started"
-
-            # Check lingering
-            if ! loginctl show-user "$USER" 2>/dev/null | grep -q 'Linger=yes'; then
-                warn "User lingering is not enabled — service won't survive logout"
-                if confirm "Enable lingering? (requires sudo)" "y"; then
-                    sudo loginctl enable-linger "$USER"
-                    success "Lingering enabled"
-                fi
+        if systemctl --user is-active memlayer-daemon &>/dev/null; then
+            info "Daemon service is already running"
+            if ! confirm "Update service?" "y"; then
+                success "Keeping existing service"
+                _skip_service=true
+            else
+                systemctl --user stop memlayer-daemon || true
             fi
-        else
-            echo
-            info "To run manually:"
-            echo "    MEMLAYER_SERVER_URL=\"$server_url\" \\"
-            echo "    MEMLAYER_AUTH_TOKEN=\"$auth_token\" \\"
-            echo "    $DAEMON_BIN"
         fi
+
+        if [[ "${_skip_service:-}" != "true" ]]; then
+            if confirm "Install systemd service for automatic startup?" "y"; then
+                mkdir -p "$service_dir"
+                sed \
+                    -e "s|{{DAEMON_PATH}}|$DAEMON_BIN|g" \
+                    "$SCRIPT_DIR/scripts/memlayer-daemon.service.template" > "$service_path"
+
+                systemctl --user daemon-reload
+                systemctl --user enable --now memlayer-daemon
+                success "systemd service installed and started"
+
+                # Check lingering
+                if ! loginctl show-user "$USER" 2>/dev/null | grep -q 'Linger=yes'; then
+                    warn "User lingering is not enabled — service won't survive logout"
+                    if confirm "Enable lingering? (requires sudo)" "y"; then
+                        sudo loginctl enable-linger "$USER"
+                        success "Lingering enabled"
+                    fi
+                fi
+            else
+                echo
+                info "To run manually:"
+                echo "    MEMLAYER_SERVER_URL=\"$server_url\" \\"
+                echo "    MEMLAYER_AUTH_TOKEN=\"$auth_token\" \\"
+                echo "    $DAEMON_BIN"
+            fi
+        fi
+    else
+        warn "systemctl not found — skipping service installation"
+        echo
+        info "To run manually:"
+        echo "    MEMLAYER_SERVER_URL=\"$server_url\" \\"
+        echo "    MEMLAYER_AUTH_TOKEN=\"$auth_token\" \\"
+        echo "    $DAEMON_BIN"
     fi
 
 elif [[ "$_os" == "macos" ]]; then
