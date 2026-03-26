@@ -440,14 +440,23 @@ elif [[ "$_os" == "macos" ]] && launchctl list 2>/dev/null | grep -q io.memlayer
 fi
 
 print_box \
-    "Memlayer Client — Setup Complete" \
+    "Memlayer Client - Setup Complete" \
     "" \
-    "Daemon:     ~/.local/bin/memlayer-daemon" \
-    "Service:    $_service_status" \
-    "Server:     $server_url" \
-    "CLI:        $_cli_status" \
-    "CLAUDE.md:  $_claudemd_status"
+    "Daemon:    ~/.local/bin/memlayer-daemon" \
+    "Service:   $_service_status" \
+    "Server:    $server_url" \
+    "CLI:       $_cli_status" \
+    "CLAUDE.md: $_claudemd_status"
 
+echo
+info "What happens next:"
+echo "  The daemon is now scanning your Claude Code conversation history"
+echo "  (~/.claude/projects/**/*.jsonl) and uploading it to your server."
+echo
+echo "  Initial sync typically takes 5-15 minutes depending on how much"
+echo "  history you have. Embedding generation runs in the background and"
+echo "  may take a bit longer. Search works immediately via full-text"
+echo "  search; semantic search improves as embeddings complete."
 echo
 success "Start a new Claude Code session and ask: \"Do you remember what we worked on?\""
 echo

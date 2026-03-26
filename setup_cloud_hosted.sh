@@ -321,7 +321,7 @@ api_url="$server_url/api"
 
 echo
 print_box \
-    "Memlayer Cloud — Deployed" \
+    "Memlayer Cloud - Deployed" \
     "" \
     "Server:      $server_url" \
     "API base:    $api_url" \
