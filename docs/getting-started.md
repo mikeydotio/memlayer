@@ -80,7 +80,7 @@ The client consists of a Rust daemon (pre-built binaries available) and the `mem
 The script runs seven steps:
 
 1. **Prerequisites** — Checks for Node.js 18+ and optionally Rust/Cargo.
-2. **Daemon installation** — Downloads a pre-built binary or builds from source. Installs to `~/.local/bin/claude-mem-daemon`.
+2. **Daemon installation** — Downloads a pre-built binary or builds from source. Installs to `~/.local/bin/memlayer-daemon`.
 3. **Server connection** — Auto-detects a local server or prompts for the server URL.
 4. **Authentication** — Prompts for the auth token from server setup (or detects an existing one).
 5. **Background service** — Installs a systemd service (Linux) or launchd agent (macOS) so the daemon starts automatically.
@@ -101,7 +101,7 @@ Skip interactive prompts by passing arguments directly:
 ```bash
 cd daemon
 cargo build --release
-cp target/release/claude-mem-daemon ~/.local/bin/
+cp target/release/memlayer-daemon ~/.local/bin/
 ```
 
 **Run the daemon:**
@@ -109,7 +109,7 @@ cp target/release/claude-mem-daemon ~/.local/bin/
 ```bash
 MEMLAYER_SERVER_URL="http://localhost:8420/api" \
 MEMLAYER_AUTH_TOKEN="your-secret-token" \
-~/.local/bin/claude-mem-daemon
+~/.local/bin/memlayer-daemon
 ```
 
 On first run, the daemon scans all existing JSONL files and ingests them. Subsequent runs pick up from where they left off using byte-offset cursors stored in `~/.local/share/memlayer/cursors.db`.
@@ -127,14 +127,14 @@ chmod 600 ~/.config/memlayer/env
 
 # Create service file
 mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/claude-mem-daemon.service << 'EOF'
+cat > ~/.config/systemd/user/memlayer-daemon.service << 'EOF'
 [Unit]
 Description=Claude Memory Layer Daemon
 After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/claude-mem-daemon
+ExecStart=%h/.local/bin/memlayer-daemon
 EnvironmentFile=%h/.config/memlayer/env
 Environment=RUST_LOG=info
 Restart=always
@@ -145,7 +145,7 @@ WantedBy=default.target
 EOF
 
 systemctl --user daemon-reload
-systemctl --user enable --now claude-mem-daemon
+systemctl --user enable --now memlayer-daemon
 ```
 
 **Build and install the CLI:**

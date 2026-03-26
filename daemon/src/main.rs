@@ -15,7 +15,7 @@ use tracing::{info, warn};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if std::env::args().any(|a| a == "--version" || a == "-V") {
-        println!("claude-mem-daemon {}", env!("CARGO_PKG_VERSION"));
+        println!("memlayer-daemon {}", env!("CARGO_PKG_VERSION"));
         std::process::exit(0);
     }
 
@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         server = %config.server_url,
         watch_path = %config.watch_path.display(),
         machine_id = %config.machine_id,
-        "Starting claude-mem-daemon"
+        "Starting memlayer-daemon"
     );
 
     // Ensure data directory exists
@@ -95,6 +95,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    info!("claude-mem-daemon stopped");
+    info!("memlayer-daemon stopped");
     Ok(())
 }

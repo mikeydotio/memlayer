@@ -2,14 +2,14 @@
 1. Overview
 The Claude Code Memory Layer is a distributed, client-server architecture designed to provide infinite, searchable, long-term memory for Claude Code CLI sessions. It continuously synchronizes local conversation logs to a centralized PostgreSQL database, generates semantic embeddings, and exposes a hybrid-search interface back to Claude via the Model Context Protocol (MCP).
 2. Architecture & Components
-2.1 Thin Client Daemon (claude-mem-daemon)
+2.1 Thin Client Daemon (memlayer-daemon)
 A lightweight, cross-platform background process running on multiple client machines (laptops, desktops).
 * Core Function: Tails and parses Claude Code logs located at ~/.claude/projects/*/*.jsonl.
 * Processing: Extracts the raw JSON objects, session IDs, timestamps, and workspace paths.
 * Transport: Streams parsed entries to the central Memory Server over the Tailnet.
 * Authentication: Authenticates with the server using a pre-shared SSH key (either via an SSH tunnel for HTTP traffic or a direct secure RPC connection).
 * Resilience: Maintains a local cursor/pointer of the last read line. If the Tailnet drops, it queues updates locally until the connection is restored.
-2.2 Thick Server (claude-mem-server)
+2.2 Thick Server (memlayer-server)
 A centralized processing API running in a Docker container on a designated Tailnet host.
 * Ingestion Endpoint: Receives raw JSON payloads from the client daemons.
 * Embedding Generation: Calls an embedding model API (e.g., OpenAI text-embedding-3-small or a local Ollama instance) to convert the message text into vector embeddings.
@@ -24,7 +24,7 @@ The persistent storage engine.
    * B-Tree indexes on session_id, project_path, and timestamp for fast filtering.
 2.4 AI Integration (MCP Server & Claude Skill)
 The bridge between the database and the Claude CLI.
-* MCP Server (claude-mem-mcp): Connects to the Thick Server's Search API. It exposes distinct tools to the LLM:
+* MCP Server (memlayer-mcp): Connects to the Thick Server's Search API. It exposes distinct tools to the LLM:
    * search_memory(query, session_id?, project_path?): Executes the hybrid search.
    * get_session_summary(session_id): Retrieves a chronological summary of a specific past session.
 * Claude Skill (.claude/skills/memory.md): A custom skillpack that teaches Claude when and how to use the MCP tools. It detects phrases like "Do you remember when we..." or "Look up how we fixed this in the other project," formats the query, calls the MCP server, and synthesizes the returned context into the current conversation.

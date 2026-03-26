@@ -1,5 +1,5 @@
 [package]
-name = "claude-mem-daemon"
+name = "memlayer-daemon"
 version = "1.4.1"
 edition = "2024"
 

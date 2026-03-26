@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/scripts/lib.sh"
 
 TOTAL_STEPS=7
-DAEMON_BIN="$HOME/.local/bin/claude-mem-daemon"
+DAEMON_BIN="$HOME/.local/bin/memlayer-daemon"
 RELEASE_BASE="https://github.com/mikeydotio/memlayer/releases/latest/download"
 
 # ── Parse CLI args ──────────────────────────────────────────────────
@@ -93,14 +93,14 @@ if [[ "${_skip_daemon:-}" != "true" ]]; then
 
         info "Building daemon from source..."
         (cd "$daemon_src" && cargo build --release)
-        cp "$daemon_src/target/release/claude-mem-daemon" "$DAEMON_BIN"
+        cp "$daemon_src/target/release/memlayer-daemon" "$DAEMON_BIN"
         chmod +x "$DAEMON_BIN"
         success "Daemon built and installed to $DAEMON_BIN"
     else
         # Download pre-built binary
         os=$(detect_os)
         arch=$(detect_arch)
-        tarball="claude-mem-daemon-${os}-${arch}.tar.gz"
+        tarball="memlayer-daemon-${os}-${arch}.tar.gz"
         url="${RELEASE_BASE}/${tarball}"
 
         info "Downloading $tarball..."
@@ -122,7 +122,7 @@ if [[ "${_skip_daemon:-}" != "true" ]]; then
                     fi
                     info "Building daemon from source..."
                     (cd "$daemon_src" && cargo build --release)
-                    cp "$daemon_src/target/release/claude-mem-daemon" "$DAEMON_BIN"
+                    cp "$daemon_src/target/release/memlayer-daemon" "$DAEMON_BIN"
                     chmod +x "$DAEMON_BIN"
                     success "Daemon built and installed to $DAEMON_BIN"
                 else
@@ -183,7 +183,7 @@ step 4 $TOTAL_STEPS "Configuring authentication"
 # Check existing token in env file or service files
 existing_token=""
 env_file="$HOME/.config/memlayer/env"
-service_file="$HOME/.config/systemd/user/claude-mem-daemon.service"
+service_file="$HOME/.config/systemd/user/memlayer-daemon.service"
 plist_file="$HOME/Library/LaunchAgents/io.memlayer.daemon.plist"
 
 if [[ -f "$env_file" ]]; then
@@ -251,15 +251,15 @@ _os=$(detect_os)
 if [[ "$_os" == "linux" ]]; then
     # systemd
     service_dir="$HOME/.config/systemd/user"
-    service_path="$service_dir/claude-mem-daemon.service"
+    service_path="$service_dir/memlayer-daemon.service"
 
-    if systemctl --user is-active claude-mem-daemon &>/dev/null; then
+    if systemctl --user is-active memlayer-daemon &>/dev/null; then
         info "Daemon service is already running"
         if ! confirm "Update service?" "y"; then
             success "Keeping existing service"
             _skip_service=true
         else
-            systemctl --user stop claude-mem-daemon || true
+            systemctl --user stop memlayer-daemon || true
         fi
     fi
 
@@ -279,10 +279,10 @@ ENVEOF
             mkdir -p "$service_dir"
             sed \
                 -e "s|{{DAEMON_PATH}}|$DAEMON_BIN|g" \
-                "$SCRIPT_DIR/scripts/claude-mem-daemon.service.template" > "$service_path"
+                "$SCRIPT_DIR/scripts/memlayer-daemon.service.template" > "$service_path"
 
             systemctl --user daemon-reload
-            systemctl --user enable --now claude-mem-daemon
+            systemctl --user enable --now memlayer-daemon
             success "systemd service installed and started"
 
             # Check lingering
@@ -359,9 +359,9 @@ if [[ -f "$cli_dir/package.json" ]] && command -v node &>/dev/null; then
     (cd "$cli_dir" && npm install --no-audit --no-fund && npx tsc)
 
     # Remove old MCP registration if present
-    if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q claude-memory; then
+    if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q memlayer; then
         info "Removing old MCP registration..."
-        claude mcp remove claude-memory --scope user 2>/dev/null || true
+        claude mcp remove memlayer --scope user 2>/dev/null || true
     fi
 
     # Create symlink to CLI binary
@@ -410,7 +410,7 @@ if confirm "Add memory instructions to ~/.claude/CLAUDE.md?" "y"; then
         # Ensure trailing newline before appending
         [[ -s "$claudemd" ]] && [[ "$(tail -c1 "$claudemd")" != "" ]] && echo >> "$claudemd"
         echo >> "$claudemd"
-        cat "$SCRIPT_DIR/scripts/claude-memory.claudemd.template" >> "$claudemd"
+        cat "$SCRIPT_DIR/scripts/memlayer.claudemd.template" >> "$claudemd"
         success "Memory instructions added to CLAUDE.md"
         _claudemd_status="installed"
     fi
@@ -423,7 +423,7 @@ echo
 
 # Determine service status
 _service_status="not installed"
-if [[ "$_os" == "linux" ]] && systemctl --user is-active claude-mem-daemon &>/dev/null 2>&1; then
+if [[ "$_os" == "linux" ]] && systemctl --user is-active memlayer-daemon &>/dev/null 2>&1; then
     _service_status="running (systemd)"
 elif [[ "$_os" == "macos" ]] && launchctl list 2>/dev/null | grep -q io.memlayer.daemon; then
     _service_status="running (launchd)"

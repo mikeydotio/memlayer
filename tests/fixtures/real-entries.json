@@ -92,7 +92,7 @@
       "slug": null,
       "source_uuid": "8a3523fb-63dc-4381-9ff0-bd21431866ca",
       "parent_uuid": "68922700-0567-4de7-8043-d2477ffa624a",
-      "tool_name": "mcp__claude-memory__search_memory",
+      "tool_name": "mcp__memlayer__search_memory",
       "cwd": "/home/mikey/memlayer",
       "git_branch": "main"
     },

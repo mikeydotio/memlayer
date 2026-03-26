@@ -39,9 +39,9 @@ cmd_status() {
     fi
 
     # Daemon
-    if pgrep -f claude-mem-daemon &>/dev/null; then
-        success "Daemon: running (PID $(pgrep -f claude-mem-daemon | head -1))"
-    elif systemctl --user is-active claude-mem-daemon &>/dev/null 2>&1; then
+    if pgrep -f memlayer-daemon &>/dev/null; then
+        success "Daemon: running (PID $(pgrep -f memlayer-daemon | head -1))"
+    elif systemctl --user is-active memlayer-daemon &>/dev/null 2>&1; then
         success "Daemon: running (systemd)"
     else
         warn "Daemon: not running"

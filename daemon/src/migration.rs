@@ -234,7 +234,7 @@ pub fn rewrite_config(new_server_url: &str, new_auth_token: &str) -> Result<(), 
             if let Some(servers) = json.get_mut("mcpServers") {
                 if let Some(servers_obj) = servers.as_object_mut() {
                     for (name, server) in servers_obj.iter_mut() {
-                        if name.contains("memlayer") || name.contains("claude-memory") {
+                        if name.contains("memlayer") || name.contains("memlayer") {
                             if let Some(env) = server.get_mut("env") {
                                 if let Some(env_obj) = env.as_object_mut() {
                                     env_obj.insert(

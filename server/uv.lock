@@ -161,48 +161,6 @@ wheels = [
 ]
 
 [[package]]
-name = "claude-mem-server"
-version = "1.4.1"
-source = { virtual = "." }
-dependencies = [
-    { name = "asyncpg" },
-    { name = "cryptography" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "numpy" },
-    { name = "openai" },
-    { name = "pgvector" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "asyncpg", specifier = ">=0.30" },
-    { name = "cryptography", specifier = ">=44.0" },
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "httpx", marker = "extra == 'dev'" },
-    { name = "numpy", specifier = ">=1.26" },
-    { name = "openai", specifier = ">=1.60" },
-    { name = "pgvector", specifier = ">=0.3" },
-    { name = "pydantic", specifier = ">=2.10" },
-    { name = "pydantic-settings", specifier = ">=2.7" },
-    { name = "pytest", marker = "extra == 'dev'" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
-]
-provides-extras = ["dev"]
-
-[[package]]
 name = "click"
 version = "8.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -482,6 +440,48 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c4/10/528b439290763bff3d939268085d03382471b442f212dca4ff5f12802d43/jiter-0.13.0-graalpy312-graalpy250_312_native-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ab44b178f7981fcaea7e0a5df20e773c663d06ffda0198f1a524e91b2fde7e59", size = 337384, upload-time = "2026-02-02T12:37:53.582Z" },
     { url = "https://files.pythonhosted.org/packages/67/8a/a342b2f0251f3dac4ca17618265d93bf244a2a4d089126e81e4c1056ac50/jiter-0.13.0-graalpy312-graalpy250_312_native-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7bb00b6d26db67a05fe3e12c76edc75f32077fb51deed13822dc648fa373bc19", size = 343768, upload-time = "2026-02-02T12:37:55.055Z" },
 ]
+
+[[package]]
+name = "memlayer-server"
+version = "1.4.1"
+source = { virtual = "." }
+dependencies = [
+    { name = "asyncpg" },
+    { name = "cryptography" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "numpy" },
+    { name = "openai" },
+    { name = "pgvector" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asyncpg", specifier = ">=0.30" },
+    { name = "cryptography", specifier = ">=44.0" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "httpx", marker = "extra == 'dev'" },
+    { name = "numpy", specifier = ">=1.26" },
+    { name = "openai", specifier = ">=1.60" },
+    { name = "pgvector", specifier = ">=0.3" },
+    { name = "pydantic", specifier = ">=2.10" },
+    { name = "pydantic-settings", specifier = ">=2.7" },
+    { name = "pytest", marker = "extra == 'dev'" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "numpy"

@@ -19,11 +19,11 @@ _os=$(detect_os)
 service_removed=false
 
 if [[ "$_os" == "linux" ]]; then
-    service_file="$HOME/.config/systemd/user/claude-mem-daemon.service"
-    if systemctl --user is-enabled claude-mem-daemon &>/dev/null 2>&1 || [[ -f "$service_file" ]]; then
+    service_file="$HOME/.config/systemd/user/memlayer-daemon.service"
+    if systemctl --user is-enabled memlayer-daemon &>/dev/null 2>&1 || [[ -f "$service_file" ]]; then
         if confirm "Stop and remove systemd service?" "y"; then
-            systemctl --user stop claude-mem-daemon 2>/dev/null || true
-            systemctl --user disable claude-mem-daemon 2>/dev/null || true
+            systemctl --user stop memlayer-daemon 2>/dev/null || true
+            systemctl --user disable memlayer-daemon 2>/dev/null || true
             rm -f "$service_file"
             systemctl --user daemon-reload
             success "systemd service removed"
@@ -53,7 +53,7 @@ fi
 # ── Step 2: Remove daemon binary ───────────────────────────────────
 step 2 $TOTAL_STEPS "Daemon binary"
 
-daemon_bin="$HOME/.local/bin/claude-mem-daemon"
+daemon_bin="$HOME/.local/bin/memlayer-daemon"
 if [[ -f "$daemon_bin" ]]; then
     if confirm "Remove daemon binary ($daemon_bin)?" "y"; then
         rm -f "$daemon_bin"
@@ -81,8 +81,8 @@ else
 fi
 
 # Remove old MCP registration if still present
-if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q claude-memory; then
-    claude mcp remove claude-memory --scope user 2>/dev/null || true
+if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q memlayer; then
+    claude mcp remove memlayer --scope user 2>/dev/null || true
     info "Removed legacy MCP registration"
 fi
 

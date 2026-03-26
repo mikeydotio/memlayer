@@ -14,13 +14,13 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            artifact: claude-mem-daemon-linux-x86_64
+            artifact: memlayer-daemon-linux-x86_64
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
-            artifact: claude-mem-daemon-linux-aarch64
+            artifact: memlayer-daemon-linux-aarch64
           - target: aarch64-apple-darwin
             os: macos-latest
-            artifact: claude-mem-daemon-macos-aarch64
+            artifact: memlayer-daemon-macos-aarch64
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -45,8 +45,8 @@ jobs:
       - name: Package binary
         run: |
           mkdir -p dist
-          cp daemon/target/${{ matrix.target }}/release/claude-mem-daemon dist/
-          tar -czf ${{ matrix.artifact }}.tar.gz -C dist claude-mem-daemon
+          cp daemon/target/${{ matrix.target }}/release/memlayer-daemon dist/
+          tar -czf ${{ matrix.artifact }}.tar.gz -C dist memlayer-daemon
 
       - uses: actions/upload-artifact@v4
         with:
@@ -91,7 +91,7 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            artifacts/claude-mem-daemon-linux-x86_64.tar.gz
-            artifacts/claude-mem-daemon-linux-aarch64.tar.gz
-            artifacts/claude-mem-daemon-macos-aarch64.tar.gz
+            artifacts/memlayer-daemon-linux-x86_64.tar.gz
+            artifacts/memlayer-daemon-linux-aarch64.tar.gz
+            artifacts/memlayer-daemon-macos-aarch64.tar.gz
             artifacts/memlayer-cli.tar.gz

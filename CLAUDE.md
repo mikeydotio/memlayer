@@ -23,7 +23,7 @@ docker compose up server --build -d
 cd daemon && cargo build --release
 
 # Run daemon
-MEMLAYER_SERVER_URL="http://localhost:8420/api" MEMLAYER_AUTH_TOKEN="..." ./daemon/target/release/claude-mem-daemon
+MEMLAYER_SERVER_URL="http://localhost:8420/api" MEMLAYER_AUTH_TOKEN="..." ./daemon/target/release/memlayer-daemon
 
 # Build CLI
 cd cli && npm install && npx tsc

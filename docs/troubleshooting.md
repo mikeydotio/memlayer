@@ -21,12 +21,12 @@ docker compose logs db
 
 ```bash
 # Linux
-systemctl --user status claude-mem-daemon
-journalctl --user -u claude-mem-daemon -f
+systemctl --user status memlayer-daemon
+journalctl --user -u memlayer-daemon -f
 
 # macOS
 launchctl list | grep memlayer
-cat ~/Library/Logs/claude-mem-daemon.log
+cat ~/Library/Logs/memlayer-daemon.log
 ```
 
 **Causes:**
@@ -72,11 +72,11 @@ docker compose exec db psql -U memlayer -d memlayer \
   -c "SELECT COUNT(*), MIN(created_at), MAX(created_at) FROM memory_entries"
 
 # Check daemon status
-systemctl --user status claude-mem-daemon
+systemctl --user status memlayer-daemon
 ```
 
 **Causes:**
-- **Daemon not running.** Start it: `systemctl --user start claude-mem-daemon`.
+- **Daemon not running.** Start it: `systemctl --user start memlayer-daemon`.
 - **Initial ingestion still in progress.** Check daemon logs for progress.
 - **Query too specific.** Try shorter, simpler queries with keywords.
 - **Wrong project filter.** Remove `project_path` to search across all projects.
@@ -174,8 +174,8 @@ Monitor progress:
 
 ```bash
 # Linux
-journalctl --user -u claude-mem-daemon -f
+journalctl --user -u memlayer-daemon -f
 
 # macOS
-tail -f ~/Library/Logs/claude-mem-daemon.log
+tail -f ~/Library/Logs/memlayer-daemon.log
 ```

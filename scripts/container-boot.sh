@@ -26,7 +26,7 @@
 set -euo pipefail
 
 INSTALL_DIR="$HOME/.memlayer"
-DAEMON_BIN="$HOME/.local/bin/claude-mem-daemon"
+DAEMON_BIN="$HOME/.local/bin/memlayer-daemon"
 REPO_URL="https://github.com/mikeydotio/memlayer.git"
 TARBALL_URL="https://github.com/mikeydotio/memlayer/archive/refs/heads/main.tar.gz"
 RELEASE_BASE="https://github.com/mikeydotio/memlayer/releases/latest/download"
@@ -112,7 +112,7 @@ if [[ "$_need_daemon" == "true" ]]; then
     arch=$(uname -m)
     [[ "$arch" == "amd64" ]] && arch="x86_64"
     [[ "$arch" == "arm64" ]] && arch="aarch64"
-    tarball="claude-mem-daemon-${os}-${arch}.tar.gz"
+    tarball="memlayer-daemon-${os}-${arch}.tar.gz"
 
     if curl -fsSL --max-time 30 -o "/tmp/$tarball" "${RELEASE_BASE}/${tarball}" 2>/dev/null; then
         tar -xzf "/tmp/$tarball" -C "$HOME/.local/bin/"
@@ -126,7 +126,7 @@ if [[ "$_need_daemon" == "true" ]]; then
     if [[ "$_installed" != "true" ]] && command -v cargo &>/dev/null; then
         log "Building daemon from source..."
         (cd "$INSTALL_DIR/daemon" && cargo build --release -q 2>/dev/null)
-        cp "$INSTALL_DIR/daemon/target/release/claude-mem-daemon" "$DAEMON_BIN"
+        cp "$INSTALL_DIR/daemon/target/release/memlayer-daemon" "$DAEMON_BIN"
         chmod +x "$DAEMON_BIN"
         log "Daemon built from source"
         _installed=true
@@ -162,15 +162,15 @@ if [[ -f "$cli_dir/dist/cli.js" ]]; then
     log "CLI installed to ~/.local/bin/memlayer"
 
     # Remove old MCP registration if present
-    if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q claude-memory; then
-        claude mcp remove claude-memory --scope user 2>/dev/null || true
+    if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q memlayer; then
+        claude mcp remove memlayer --scope user 2>/dev/null || true
         log "Old MCP registration removed"
     fi
 fi
 
 # ── Step 5: Inject memory instructions into CLAUDE.md ────────────
 claudemd="$HOME/.claude/CLAUDE.md"
-template="$INSTALL_DIR/scripts/claude-memory.claudemd.template"
+template="$INSTALL_DIR/scripts/memlayer.claudemd.template"
 mkdir -p "$HOME/.claude"
 
 if [[ -f "$template" ]]; then
@@ -193,8 +193,8 @@ fi
 
 # ── Step 6: Start daemon (background process) ─────────────────────
 # Kill any existing daemon
-if pgrep -f claude-mem-daemon &>/dev/null; then
-    pkill -f claude-mem-daemon 2>/dev/null || true
+if pgrep -f memlayer-daemon &>/dev/null; then
+    pkill -f memlayer-daemon 2>/dev/null || true
     sleep 1
     log "Stopped existing daemon"
 fi
