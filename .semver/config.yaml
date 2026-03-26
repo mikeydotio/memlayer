@@ -1,6 +1,6 @@
 tracking: true
-auto_bump: false
-auto_bump_confirm: true
+auto_bump: true
+auto_bump_confirm: false
 version_prefix: "v"
 changelog_format: grouped
 target_branch: main
