@@ -64,3 +64,15 @@ cd daemon && cargo test
 - `cli/src/cli-formatters.ts` — Output formatting (JSON and text modes)
 - `cli/src/api-client.ts` — HTTP client for the memlayer API
 - `cli/src/file-cache.ts` — Local file cache for large response files
+
+<!-- semver:start -->
+## Versioning
+
+This project uses semantic versioning managed by the `/semver` skill.
+
+- **Current version**: See `VERSION` file
+- **Changelog**: See `CHANGELOG.md`
+- **Config**: `.semver/config.yaml`
+- **Bump**: `/semver bump <major|minor|patch>`
+- **Check**: `/semver current`
+<!-- semver:end -->
