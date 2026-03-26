@@ -1,7 +1,11 @@
+import logging
+
 import asyncpg
 from pgvector.asyncpg import register_vector
 
 from .config import settings
+
+logger = logging.getLogger(__name__)
 
 pool: asyncpg.Pool | None = None
 
@@ -10,14 +14,31 @@ async def init_pool() -> asyncpg.Pool:
     global pool
 
     async def _init_connection(conn):
-        await register_vector(conn)
+        try:
+            await register_vector(conn)
+        except ValueError as e:
+            if "unknown type" in str(e) and "vector" in str(e):
+                raise RuntimeError(
+                    "pgvector extension is not enabled in the database. "
+                    "Enable it in your Supabase dashboard: Database → Extensions → enable 'vector'. "
+                    "Then restart the server."
+                ) from e
+            raise
 
-    pool = await asyncpg.create_pool(
-        settings.database_url,
-        min_size=2,
-        max_size=10,
-        init=_init_connection,
-    )
+    try:
+        pool = await asyncpg.create_pool(
+            settings.database_url,
+            min_size=2,
+            max_size=10,
+            init=_init_connection,
+        )
+    except RuntimeError:
+        raise
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to connect to database: {e}. "
+            "Check your DATABASE_URL and ensure the database is accessible."
+        ) from e
     return pool
 
 
