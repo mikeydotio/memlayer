@@ -28,6 +28,10 @@ pub struct SearchResult {
     pub fts_rank: i32,
     pub vector_rank: i32,
     pub rrf_score: f64,
+    #[serde(default)]
+    pub content_truncated: bool,
+    #[serde(default)]
+    pub content_length: i64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -54,6 +58,8 @@ pub struct SearchRequest {
     pub before: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub types: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub truncate: Option<bool>,
 }
 
 // ── Session types ───────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 ## Memory (Cross-Session Recall)
 
 The `memlayer` CLI provides commands to search past conversations:
+- `memlayer recent` — list recent sessions by last activity (great for "what was I working on?")
 - `memlayer search "<query>"` — hybrid search across all past Claude Code conversations
 - `memlayer session <session-uuid>` — full chronological session history
 - `memlayer read-file <file-uuid> --start <n> --end <n>` — read specific line ranges from large response files
@@ -8,6 +9,10 @@ The `memlayer` CLI provides commands to search past conversations:
 Use `memlayer search` when the user references past work, asks about prior
 decisions, or encounters a problem that may have been solved before.
 Use keyword-rich queries for best results.
+
+**Default behavior:** Search and session commands only return `user` and
+`assistant` entries by default. Use `--all-types` for tool_use/tool_result.
+Search results are truncated to 200 chars — use `--full` for complete content.
 
 When a search or session response is too large to return inline,
 the server offloads it to a file and returns a summary with a structural

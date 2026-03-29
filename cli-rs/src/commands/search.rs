@@ -31,9 +31,17 @@ pub struct SearchArgs {
     #[arg(long)]
     before: Option<String>,
 
-    /// Comma-separated: user,assistant,tool_use,tool_result
+    /// Comma-separated: user,assistant,tool_use,tool_result (default: user,assistant)
     #[arg(long)]
     types: Option<String>,
+
+    /// Include all content types (overrides default user,assistant filter)
+    #[arg(long, conflicts_with = "types")]
+    all_types: bool,
+
+    /// Return full untruncated content (default: truncated to 200 chars)
+    #[arg(long)]
+    full: bool,
 
     /// Output format: json or text
     #[arg(long, default_value = "json")]
@@ -45,9 +53,13 @@ pub async fn run(args: SearchArgs) -> Result<(), String> {
     let client = MemlayerClient::new(&config);
     let cache = FileCache::new(config.cache_dir.clone());
 
-    let types = args
-        .types
-        .map(|t| t.split(',').map(|s| s.trim().to_string()).collect());
+    let types = if args.all_types {
+        None
+    } else if let Some(t) = args.types {
+        Some(t.split(',').map(|s| s.trim().to_string()).collect())
+    } else {
+        Some(vec!["user".to_string(), "assistant".to_string()])
+    };
 
     let results = client
         .search(&SearchRequest {
@@ -58,6 +70,7 @@ pub async fn run(args: SearchArgs) -> Result<(), String> {
             after: args.after,
             before: args.before,
             types,
+            truncate: if args.full { Some(false) } else { None },
         })
         .await?;
 

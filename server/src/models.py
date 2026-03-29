@@ -37,6 +37,7 @@ class SearchRequest(BaseModel):
     before: datetime | None = Field(default=None, description="Filter entries before this timestamp")
     types: list[str] | None = Field(default=None, description="Filter by content_type: user, assistant, tool_use, tool_result")
     limit: int = Field(default=20, ge=1, le=100)
+    truncate: bool = Field(default=True, description="Truncate raw_content to 200 chars")
 
 
 class SearchResult(BaseModel):
@@ -51,6 +52,8 @@ class SearchResult(BaseModel):
     fts_rank: int
     vector_rank: int
     rrf_score: float
+    content_truncated: bool = False
+    content_length: int = 0
 
 
 class LargeResponseRef(BaseModel):

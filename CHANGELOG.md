@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.7.0] — 2026-03-29
+
+### Added
+
+- `memlayer recent` command — list recent sessions by last activity without a search query; supports `--limit`, `--project`, `--format` flags (`cli-rs/src/commands/recent.rs`, `cli-rs/src/format/recent.rs`) (#37)
+- `--all-types` flag on `search` and `session` commands — includes all content types (tool_use, tool_result) when explicitly requested (#39)
+- `--full` flag on `search` command — returns full untruncated content from the server (#38)
+- Server-side content truncation for search results — `raw_content` truncated to 200 chars by default with `content_truncated` and `content_length` metadata fields (#38)
+- Search strategy guidance and common mistakes section in memory skill documentation (#40)
+
+### Changed
+
+- `search` and `session` commands now default to `--types user,assistant`, filtering out tool_use/tool_result entries; use `--all-types` to restore previous behavior (#39)
+- Search results JSON output now includes `content_truncated` and `content_length` fields (#38)
+- Search results text output shows `[...truncated, N chars total]` indicator for truncated content (#38)
+- Memory skill SKILL.md rewritten with expanded command reference, search heuristics, and temporal cue handling (#40)
+- `memlayer.claudemd.template` updated with `memlayer recent` command and default behavior notes (#40) _[manual]_
+
 ## [v1.6.0] — 2026-03-29
 
 ### Added

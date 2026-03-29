@@ -1,7 +1,7 @@
 ---
 name: memory
-description: Use when the user wants to recall past conversations, remember previous work, look up prior decisions, search conversation history, or reference past sessions. Trigger keywords include "remember", "recall", "past conversation", "previous session", "how did we", "why did we", "what was the approach", "look up", "what did we decide", "have we done this before", "earlier we", "last time", "when did we", "do you remember".
-version: 0.1.0
+description: Use when the user wants to recall past conversations, remember previous work, look up prior decisions, search conversation history, browse recent sessions, or reference past sessions. Trigger keywords include "remember", "recall", "past conversation", "previous session", "how did we", "why did we", "what was the approach", "look up", "what did we decide", "have we done this before", "earlier we", "last time", "when did we", "do you remember", "recent", "latest", "what was I working on".
+version: 0.2.0
 ---
 
 # Memory - Cross-Session Recall
@@ -16,6 +16,7 @@ Use memory tools when the user:
 - Needs context from another project ("In the agentsmith project, how did we...")
 - Wants to avoid re-discovering something ("Look up how we configured...")
 - References past work without explicitly asking to search
+- Asks what they were working on recently or yesterday
 
 Proactively search when:
 - You encounter a problem that seems like it may have been solved before
@@ -24,12 +25,33 @@ Proactively search when:
 
 ## Commands
 
+### memlayer recent
+
+List recent sessions ordered by last activity. Use this for temporal browsing ("What was I working on yesterday?") or as a starting point before diving into a specific session.
+
+```bash
+memlayer recent --limit 10 --format text
+memlayer recent --project /home/mikey/memlayer --format text
+memlayer recent --limit 5 --format json
+```
+
+- `--limit <n>`: (optional) Max sessions to show, default 10
+- `--project <path>`: (optional) Filter to a specific project
+- `--format json|text`: (optional) Output format, default json
+
 ### memlayer search
 
 Search across all past conversations using hybrid semantic + full-text search.
 
+**Important defaults:**
+- Results only include `user` and `assistant` entries (tool_use/tool_result are filtered out). Use `--all-types` to include everything.
+- Content is truncated to 200 characters. Use `--full` for complete content.
+
 ```bash
 memlayer search "how did we fix the pooling bug" --project /home/mikey/memlayer --limit 5
+memlayer search "database migration" --all-types --full
+memlayer search "auth middleware" --types tool_use --full
+memlayer search "deployment" --after 2026-03-01 --before 2026-03-15
 ```
 
 - `<query>` (positional): Natural language description of what to find (be specific)
@@ -38,20 +60,30 @@ memlayer search "how did we fix the pooling bug" --project /home/mikey/memlayer 
 - `--limit <n>`: (optional) Number of results, default 10
 - `--after <iso8601>`: (optional) Entries after timestamp
 - `--before <iso8601>`: (optional) Entries before timestamp
-- `--types <types>`: (optional) Comma-separated: user,assistant,tool_use,tool_result
+- `--types <types>`: (optional) Comma-separated: user,assistant,tool_use,tool_result (default: user,assistant)
+- `--all-types`: (optional) Include all content types (overrides default filter)
+- `--full`: (optional) Return full untruncated content
 - `--format json|text`: (optional) Output format, default json
+
+Note: `--types` and `--all-types` cannot be used together.
 
 ### memlayer session
 
 Get chronological conversation history for a specific session.
 
+**Important defaults:**
+- Only `user` and `assistant` entries are shown by default. Use `--all-types` to include tool_use/tool_result.
+
 ```bash
-memlayer session <session-uuid> --limit 200 --types user,assistant
+memlayer session <session-uuid> --limit 200 --format text
+memlayer session <session-uuid> --all-types
+memlayer session <session-uuid> --types tool_use,tool_result
 ```
 
 - `<session_id>` (positional): The session UUID to retrieve
 - `--limit <n>`: (optional) Max entries, default 200
-- `--types <types>`: (optional) Comma-separated type filter
+- `--types <types>`: (optional) Comma-separated type filter (default: user,assistant)
+- `--all-types`: (optional) Include all content types
 - `--format json|text`: (optional) Output format, default json
 
 ### memlayer read-file
@@ -76,8 +108,28 @@ memlayer status
 ```
 
 ## Usage Pattern
-1. Search broadly first with `memlayer search`
-2. If a result looks relevant, use `memlayer session` with its session_id for full context
-3. If search or session results include a `large_response` reference, use `memlayer read-file` with the file_id and line ranges from the structural index to read specific sections
-4. Present findings with session date and project context
-5. If no results found, say so honestly — do not fabricate memories
+
+1. **Browse first** — If the user asks about recent work or "what was I working on", start with `memlayer recent` to see sessions by recency
+2. **Search broadly** — Use `memlayer search` with a keyword-rich query to find relevant entries
+3. **Drill into a session** — If a result looks relevant, use `memlayer session` with its session_id for full context
+4. **Read large responses** — If search or session results include a `large_response` reference, use `memlayer read-file` with the file_id and line ranges from the structural index
+5. **Present findings** with session date and project context
+6. If no results found, say so honestly — do not fabricate memories
+
+## Search Strategy Guidance
+
+- **Use keyword-rich queries, not natural language**: "pooling bug fix connection timeout" works better than "how did we fix the pooling bug that was causing timeouts"
+- **Scope with `--project`**: When you know which project the user is asking about, always pass `--project` to reduce noise. This is especially important on machines with many projects.
+- **Convert temporal cues to date filters**: When the user says "yesterday" or "last week", calculate the date and use `--after` / `--before`. For "yesterday": `--after 2026-03-28`. For "last week": `--after 2026-03-22 --before 2026-03-29`.
+- **Start with `memlayer recent` for temporal browsing**: "What was I working on?" or "What did we do yesterday?" — use `recent` first, then drill into specific sessions.
+- **Use `--full` only when you need complete content**: The default 200-char truncation is enough to identify relevance. Only use `--full` when you need the actual details of a result.
+- **Use `--all-types` when searching for tool output**: If the user asks about a specific command that was run, a file that was read, or build output, you need `--all-types` since tool_use and tool_result are excluded by default.
+- **Drill into a session rather than re-searching**: If you find a relevant result, use `memlayer session <session_id>` to get full context rather than crafting more search queries.
+
+### Common Mistakes
+
+- **Too broad a query**: "database" returns too many results. Be specific: "database connection pool exhaustion fix"
+- **Not filtering by project**: Without `--project`, results come from all projects, which adds noise
+- **Expecting exact string match**: The search is semantic + full-text, not literal. It finds conceptually related entries, not exact strings.
+- **Forgetting default type filter**: If you search for something and get no results, the content might be in tool_use/tool_result entries. Try `--all-types`.
+- **Ignoring truncation**: If a result looks relevant but the content is cut off, re-run with `--full` to see the complete entry.

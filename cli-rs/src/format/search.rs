@@ -13,6 +13,8 @@ pub fn format_search_json(results: &SearchResponse) -> String {
                 "tool_name": r.tool_name,
                 "rrf_score": r.rrf_score,
                 "content": r.raw_content,
+                "content_truncated": r.content_truncated,
+                "content_length": r.content_length,
             })
         })
         .collect();
@@ -82,7 +84,15 @@ pub fn format_search_text(results: &SearchResponse) -> String {
                 r.content_type,
                 tool,
             );
-            format!("{header}\n{meta}\n\n{}", r.raw_content)
+            let content = if r.content_truncated {
+                format!(
+                    "{}\n[...truncated, {} chars total]",
+                    r.raw_content, r.content_length
+                )
+            } else {
+                r.raw_content.clone()
+            };
+            format!("{header}\n{meta}\n\n{content}")
         })
         .collect();
 

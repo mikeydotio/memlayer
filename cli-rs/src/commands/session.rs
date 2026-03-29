@@ -14,9 +14,13 @@ pub struct SessionArgs {
     #[arg(long, default_value = "200")]
     limit: u32,
 
-    /// Comma-separated: user,assistant,tool_use,tool_result
+    /// Comma-separated: user,assistant,tool_use,tool_result (default: user,assistant)
     #[arg(long)]
     types: Option<String>,
+
+    /// Include all content types (overrides default user,assistant filter)
+    #[arg(long, conflicts_with = "types")]
+    all_types: bool,
 
     /// Output format: json or text
     #[arg(long, default_value = "json")]
@@ -28,9 +32,13 @@ pub async fn run(args: SessionArgs) -> Result<(), String> {
     let client = MemlayerClient::new(&config);
     let cache = FileCache::new(config.cache_dir.clone());
 
-    let types: Option<Vec<String>> = args
-        .types
-        .map(|t| t.split(',').map(|s| s.trim().to_string()).collect());
+    let types: Option<Vec<String>> = if args.all_types {
+        None
+    } else if let Some(t) = args.types {
+        Some(t.split(',').map(|s| s.trim().to_string()).collect())
+    } else {
+        Some(vec!["user".to_string(), "assistant".to_string()])
+    };
 
     let summary = client
         .get_session_summary(&args.session_id, args.limit, types.as_deref())

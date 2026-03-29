@@ -23,6 +23,8 @@ from ..indexing import generate_index
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+TRUNCATION_LIMIT = 200
+
 
 async def _maybe_offload(
     response_json: str,
@@ -121,22 +123,34 @@ async def search(req: SearchRequest):
 
     search_ms = (time.monotonic() - t1) * 1000
 
-    results = [
-        SearchResult(
-            id=r["id"],
-            session_id=r["session_id"],
-            message_type=r["message_type"],
-            content_type=r["content_type"],
-            raw_content=r["raw_content"],
-            tool_name=r["tool_name"],
-            created_at=r["created_at"],
-            project_path=r["project_path"],
-            fts_rank=r["fts_rank"],
-            vector_rank=r["vector_rank"],
-            rrf_score=r["rrf_score"],
+    results = []
+    for r in rows:
+        raw = r["raw_content"]
+        content_length = len(raw)
+        if req.truncate and content_length > TRUNCATION_LIMIT:
+            truncated_content = raw[:TRUNCATION_LIMIT]
+            content_truncated = True
+        else:
+            truncated_content = raw
+            content_truncated = False
+
+        results.append(
+            SearchResult(
+                id=r["id"],
+                session_id=r["session_id"],
+                message_type=r["message_type"],
+                content_type=r["content_type"],
+                raw_content=truncated_content,
+                tool_name=r["tool_name"],
+                created_at=r["created_at"],
+                project_path=r["project_path"],
+                fts_rank=r["fts_rank"],
+                vector_rank=r["vector_rank"],
+                rrf_score=r["rrf_score"],
+                content_truncated=content_truncated,
+                content_length=content_length,
+            )
         )
-        for r in rows
-    ]
 
     response = SearchResponse(
         results=results,
