@@ -1,0 +1,26 @@
+[package]
+name = "memlayer-cli"
+version = "1.5.0"
+edition = "2024"
+
+[[bin]]
+name = "memlayer"
+path = "src/main.rs"
+
+[dependencies]
+memlayer-common = { path = "../memlayer-common" }
+clap = { version = "4", features = ["derive"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true }
+reqwest-eventsource = "0.6"
+ratatui = { version = "0.30", features = ["crossterm"] }
+crossterm = { version = "0.28", features = ["event-stream"] }
+tui-input = "0.11"
+color-eyre = "0.6"
+chrono = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+futures = "0.3"
+unicode-width = "0.2"

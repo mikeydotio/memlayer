@@ -1,0 +1,40 @@
+# Memlayer Client Configuration
+# Bind-mount this file read-only into containers at /etc/memlayer/client.conf
+#
+# Example (docker run):
+#   -v /path/to/memlayer-client.conf:/etc/memlayer/client.conf:ro
+#
+# Example (docker-compose):
+#   volumes:
+#     - ./memlayer-client.conf:/etc/memlayer/client.conf:ro
+
+# ── Required ───────────────────────────────────────────────────────
+
+# Server API URL (the /api endpoint, not the root)
+MEMLAYER_SERVER_URL="https://memlayer.fly.dev/api"
+
+# Shared bearer token (must match the server's MEMLAYER_AUTH_TOKEN)
+MEMLAYER_AUTH_TOKEN="your-auth-token-here"
+
+# ── Optional ───────────────────────────────────────────────────────
+
+# Machine identifier (default: container hostname)
+# Useful for distinguishing entries from different containers in search results
+#MEMLAYER_MACHINE_ID=""
+
+# Path to watch for Claude Code JSONL files (default: ~/.claude/projects)
+#MEMLAYER_WATCH_PATH=""
+
+# Data directory for cursor state and logs (default: ~/.local/share/memlayer)
+#MEMLAYER_DATA_DIR=""
+
+# Batch size for ingestion (default: 50)
+#MEMLAYER_BATCH_SIZE=""
+
+# ── Plugin Settings ────────────────────────────────────────────────
+
+# Install the Claude Code plugin for automatic memory recall (default: true)
+#MEMLAYER_INSTALL_PLUGIN="true"
+
+# Inject memory instructions into ~/.claude/CLAUDE.md (default: true)
+#MEMLAYER_INJECT_CLAUDEMD="true"

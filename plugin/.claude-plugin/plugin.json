@@ -1,0 +1,7 @@
+{
+  "name": "memlayer",
+  "description": "Cross-session memory for Claude Code — search and recall past conversations, decisions, and solutions across all projects",
+  "author": {
+    "name": "mikeydotio"
+  }
+}

@@ -21,6 +21,9 @@ from .routes.search import router as search_router
 from .routes.files import router as files_router
 from .routes.embeddings import router as embeddings_router
 from .routes.migration import router as migration_router
+from .routes.stream import router as stream_router
+from .routes.browse import router as browse_router
+from .routes.stats import router as stats_router
 
 
 class JsonFormatter(logging.Formatter):
@@ -225,6 +228,9 @@ app.include_router(search_router, prefix="/api")
 app.include_router(files_router, prefix="/api")
 app.include_router(embeddings_router, prefix="/api")
 app.include_router(migration_router, prefix="/api")
+app.include_router(stream_router, prefix="/api")
+app.include_router(browse_router, prefix="/api")
+app.include_router(stats_router, prefix="/api")
 
 
 @app.get("/health")

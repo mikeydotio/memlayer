@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.6.0] — 2026-03-29
+
+### Added
+
+- Rust CLI binary (`memlayer`) replacing the TypeScript CLI — all existing commands preserved (`search`, `session`, `read-file`, `status`) (`cli-rs/`)
+- Interactive TUI dashboard (`memlayer dashboard`) with tab-based layout: Browse, Search, Live, Stats (`cli-rs/src/tui/`)
+- Browse tab: Projects → Sessions → Entries drill-down hierarchy
+- Search tab: live-updating search with debounce, results + detail split pane
+- Live tab: real-time SSE stream of ingested entries with filter bar and auto-scroll
+- Stats tab: entry/session/project counts, embedding progress, activity sparklines
+- Shared Rust crate (`memlayer-common/`) for config, API types, HTTP client, and file cache
+- Cargo workspace unifying `daemon`, `cli-rs`, and `memlayer-common`
+- Server SSE endpoint (`GET /api/stream/entries`) for live entry broadcasting
+- Server browse endpoints (`GET /api/projects`, `GET /api/sessions`, `GET /api/sessions/{id}/entries`) with cursor-based pagination
+- Server stats endpoint (`GET /api/stats`) with 30s TTL cache
+- In-process EventBus (`server/src/event_bus.py`) for pub/sub SSE broadcasting
+- Ingest endpoint now broadcasts new entries to connected SSE clients
+- Database migration `010_browse_index.sql` — composite index for cursor-based pagination
+
+### Changed
+
+- Daemon now builds as a workspace member (shared dependency versions)
+- `setup_client.sh` builds Rust CLI instead of TypeScript CLI; Node.js no longer required
+- `CLAUDE.md` updated to reflect new architecture and CLI commands _[manual]_
+
 ## [v1.5.4] — 2026-03-26
 
 ### Fixed

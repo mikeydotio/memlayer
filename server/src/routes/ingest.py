@@ -180,6 +180,36 @@ async def ingest(req: IngestRequest):
     if new_ids:
         await enqueue_ids(new_ids)
 
+    # Broadcast to SSE clients
+    if new_ids:
+        from ..event_bus import event_bus
+        if event_bus.subscriber_count > 0:
+            # Fetch newly inserted entries by ID for accurate broadcast
+            rows = await pool.fetch(
+                """
+                SELECT me.id, me.session_id, me.message_type, me.content_type,
+                       LEFT(me.raw_content, 200) AS content_preview,
+                       me.tool_name, me.created_at,
+                       cs.project_path
+                FROM memory_entries me
+                JOIN claude_sessions cs ON cs.session_id = me.session_id
+                WHERE me.id = ANY($1)
+                ORDER BY me.id ASC
+                """,
+                new_ids,
+            )
+            for row in rows:
+                event_bus.publish({
+                    "id": row["id"],
+                    "session_id": row["session_id"],
+                    "message_type": row["message_type"],
+                    "content_type": row["content_type"],
+                    "content_preview": row["content_preview"] or "",
+                    "project_path": row["project_path"],
+                    "tool_name": row["tool_name"],
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else "",
+                })
+
     logger.info(
         f"Ingest: accepted={accepted} duplicates={duplicates} errors={errors} "
         f"sessions={len(session_map)} entries={len(req.entries)}"

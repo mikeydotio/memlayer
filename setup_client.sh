@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/scripts/lib.sh"
 
-TOTAL_STEPS=7
+TOTAL_STEPS=8
 DAEMON_BIN="$HOME/.local/bin/memlayer-daemon"
 RELEASE_BASE="https://github.com/mikeydotio/memlayer/releases/latest/download"
 
@@ -28,17 +28,6 @@ echo
 
 # ── Step 1: Prerequisites ───────────────────────────────────────────
 step 1 $TOTAL_STEPS "Checking prerequisites"
-
-require_cmd node
-require_cmd npm
-
-# Check Node version >= 18
-node_version=$(node --version | sed 's/^v//' | cut -d. -f1)
-if (( node_version < 18 )); then
-    error "Node.js 18+ required, found v${node_version}"
-    exit 1
-fi
-success "Node.js v$(node --version | sed 's/^v//') detected"
 
 if command -v cargo &>/dev/null; then
     info "Rust/Cargo detected (source builds available)"
@@ -92,8 +81,8 @@ if [[ "${_skip_daemon:-}" != "true" ]]; then
         fi
 
         info "Building daemon from source..."
-        (cd "$daemon_src" && cargo build --release)
-        cp "$daemon_src/target/release/memlayer-daemon" "$DAEMON_BIN"
+        (cd "$SCRIPT_DIR" && cargo build --release -p memlayer-daemon)
+        cp "$SCRIPT_DIR/target/release/memlayer-daemon" "$DAEMON_BIN"
         chmod +x "$DAEMON_BIN"
         success "Daemon built and installed to $DAEMON_BIN"
     else
@@ -121,8 +110,8 @@ if [[ "${_skip_daemon:-}" != "true" ]]; then
                         daemon_src=$(prompt_value "Path to memlayer/daemon directory" "$HOME/memlayer/daemon")
                     fi
                     info "Building daemon from source..."
-                    (cd "$daemon_src" && cargo build --release)
-                    cp "$daemon_src/target/release/memlayer-daemon" "$DAEMON_BIN"
+                    (cd "$SCRIPT_DIR" && cargo build --release -p memlayer-daemon)
+                    cp "$SCRIPT_DIR/target/release/memlayer-daemon" "$DAEMON_BIN"
                     chmod +x "$DAEMON_BIN"
                     success "Daemon built and installed to $DAEMON_BIN"
                 else
@@ -409,12 +398,14 @@ fi
 step 6 $TOTAL_STEPS "Installing CLI binary"
 
 CLI_BIN="$HOME/.local/bin/memlayer"
-cli_dir="$SCRIPT_DIR/cli"
 _cli_status="skipped"
 
-if [[ -f "$cli_dir/package.json" ]] && command -v node &>/dev/null; then
-    info "Building CLI..."
-    (cd "$cli_dir" && npm install --no-audit --no-fund && npx tsc)
+if command -v cargo &>/dev/null && [[ -f "$SCRIPT_DIR/cli-rs/Cargo.toml" ]]; then
+    info "Building Rust CLI..."
+    (cd "$SCRIPT_DIR" && cargo build --release -p memlayer-cli)
+    mkdir -p "$HOME/.local/bin"
+    cp "$SCRIPT_DIR/target/release/memlayer" "$CLI_BIN"
+    chmod +x "$CLI_BIN"
 
     # Remove old MCP registration if present
     if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q memlayer; then
@@ -422,14 +413,11 @@ if [[ -f "$cli_dir/package.json" ]] && command -v node &>/dev/null; then
         claude mcp remove memlayer --scope user 2>/dev/null || true
     fi
 
-    # Create symlink to CLI binary
-    mkdir -p "$HOME/.local/bin"
-    ln -sf "$cli_dir/dist/cli.js" "$CLI_BIN"
-    chmod +x "$CLI_BIN"
     success "CLI installed to $CLI_BIN"
     _cli_status="installed"
 else
-    warn "Node.js not found — CLI will not be available"
+    warn "Rust/Cargo not found — CLI will not be available"
+    info "Install Rust (https://rustup.rs/) and re-run"
 fi
 
 # ── Step 7: CLAUDE.md ──────────────────────────────────────────────
@@ -476,6 +464,48 @@ else
     info "Skipping CLAUDE.md setup"
 fi
 
+# ── Step 8: Claude Code plugin ─────────────────────────────────────
+step 8 $TOTAL_STEPS "Installing Claude Code plugin"
+
+_plugin_status="skipped"
+plugin_src="$SCRIPT_DIR/plugin"
+plugin_cache="$HOME/.claude/plugins/cache/memlayer-local/latest"
+
+if [[ -d "$plugin_src/.claude-plugin" ]]; then
+    mkdir -p "$plugin_cache"
+    if command -v rsync &>/dev/null; then
+        rsync -a "$plugin_src/" "$plugin_cache/"
+    else
+        cp -r "$plugin_src/." "$plugin_cache/"
+    fi
+    chmod +x "$plugin_cache/hooks/memory-read-hook.sh" 2>/dev/null || true
+
+    # Register in installed_plugins.json
+    installed_file="$HOME/.claude/plugins/installed_plugins.json"
+    if [[ -f "$installed_file" ]]; then
+        if ! jq -e '.plugins["memlayer@memlayer-local"]' "$installed_file" &>/dev/null 2>&1; then
+            jq --arg path "$plugin_cache" \
+               --arg now "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
+              '.plugins["memlayer@memlayer-local"] = [{"scope":"user","installPath":$path,"version":"latest","installedAt":$now,"lastUpdated":$now}]' \
+              "$installed_file" > "${installed_file}.tmp" && mv "${installed_file}.tmp" "$installed_file"
+        fi
+    fi
+
+    # Enable in settings.json
+    settings_file="$HOME/.claude/settings.json"
+    if [[ -f "$settings_file" ]]; then
+        if ! jq -e '.enabledPlugins["memlayer@memlayer-local"]' "$settings_file" &>/dev/null 2>&1; then
+            jq '.enabledPlugins["memlayer@memlayer-local"] = true' \
+              "$settings_file" > "${settings_file}.tmp" && mv "${settings_file}.tmp" "$settings_file"
+        fi
+    fi
+
+    success "Claude Code plugin installed"
+    _plugin_status="installed"
+else
+    warn "Plugin source not found at $plugin_src — skipping"
+fi
+
 # ── Summary ─────────────────────────────────────────────────────────
 echo
 
@@ -513,7 +543,8 @@ if [[ ${#_errors[@]} -eq 0 ]]; then
         "Service:   $_service_status" \
         "Server:    $server_url" \
         "CLI:       $_cli_status" \
-        "CLAUDE.md: $_claudemd_status"
+        "CLAUDE.md: $_claudemd_status" \
+        "Plugin:    $_plugin_status"
 else
     print_box \
         "Memlayer Client — Setup Complete (with warnings)" \
@@ -522,7 +553,8 @@ else
         "Service:   $_service_status" \
         "Server:    $server_url" \
         "CLI:       $_cli_status" \
-        "CLAUDE.md: $_claudemd_status"
+        "CLAUDE.md: $_claudemd_status" \
+        "Plugin:    $_plugin_status"
 
     echo
     for _err in "${_errors[@]}"; do
