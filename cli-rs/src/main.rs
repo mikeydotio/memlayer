@@ -6,7 +6,7 @@ use clap::Parser;
 use commands::Commands;
 
 #[derive(Parser)]
-#[command(name = "memlayer", version = "1.5.0")]
+#[command(name = "memlayer", version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Memlayer — search and recall past Claude Code conversations")]
 struct Cli {
     #[command(subcommand)]
