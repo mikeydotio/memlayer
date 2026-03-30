@@ -75,7 +75,24 @@ async def search(req: SearchRequest):
 
     t1 = time.monotonic()
 
-    if query_embedding is not None:
+    use_graph = req.expand_graph and query_embedding is not None
+
+    if use_graph:
+        # Graph-expanded hybrid search
+        embedding_vec = np.array(query_embedding, dtype=np.float32)
+        rows = await pool.fetch(
+            "SELECT * FROM graph_expanded_search($1, $2, $3, $4, $5, 1.0, 1.0, $6, $7, $8, $9)",
+            req.query,
+            embedding_vec,
+            req.session_id,
+            req.project_path,
+            req.limit,
+            req.after,
+            req.before,
+            req.types,
+            req.graph_weight,
+        )
+    elif query_embedding is not None:
         # Full hybrid search
         embedding_vec = np.array(query_embedding, dtype=np.float32)
         rows = await pool.fetch(
@@ -134,6 +151,15 @@ async def search(req: SearchRequest):
             truncated_content = raw
             content_truncated = False
 
+        # Graph fields are only present when expand_graph=True
+        graph_boost = float(r["graph_boost"]) if use_graph and "graph_boost" in r.keys() else 0.0
+        related_entities = None
+        if use_graph and "related_entities" in r.keys():
+            raw_entities = r["related_entities"]
+            if raw_entities:
+                import json as _json
+                related_entities = _json.loads(raw_entities) if isinstance(raw_entities, str) else raw_entities
+
         results.append(
             SearchResult(
                 id=r["id"],
@@ -149,6 +175,8 @@ async def search(req: SearchRequest):
                 rrf_score=r["rrf_score"],
                 content_truncated=content_truncated,
                 content_length=content_length,
+                graph_boost=graph_boost,
+                related_entities=related_entities,
             )
         )
 

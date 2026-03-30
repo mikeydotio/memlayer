@@ -38,6 +38,9 @@ class SearchRequest(BaseModel):
     types: list[str] | None = Field(default=None, description="Filter by content_type: user, assistant, tool_use, tool_result")
     limit: int = Field(default=20, ge=1, le=100)
     truncate: bool = Field(default=True, description="Truncate raw_content to 200 chars")
+    expand_graph: bool = Field(default=False, description="Expand results with graph-connected entries")
+    graph_hops: int = Field(default=1, ge=1, le=2, description="Number of graph hops for expansion")
+    graph_weight: float = Field(default=0.5, ge=0.0, le=2.0, description="Weight for graph-based re-ranking")
 
 
 class SearchResult(BaseModel):
@@ -54,6 +57,8 @@ class SearchResult(BaseModel):
     rrf_score: float
     content_truncated: bool = False
     content_length: int = 0
+    graph_boost: float = 0.0
+    related_entities: list[dict] | None = None
 
 
 class LargeResponseRef(BaseModel):
