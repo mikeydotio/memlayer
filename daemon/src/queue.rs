@@ -5,10 +5,19 @@ use crate::parser::ParsedEntry;
 
 pub struct OfflineQueue {
     conn: Connection,
+    max_size: usize,
 }
 
 impl OfflineQueue {
     pub fn new(data_dir: &Path) -> Result<Self, Box<dyn std::error::Error>> {
+        let max_size = std::env::var("MEMLAYER_QUEUE_MAX_SIZE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(50_000);
+        Self::with_max_size(data_dir, max_size)
+    }
+
+    pub fn with_max_size(data_dir: &Path, max_size: usize) -> Result<Self, Box<dyn std::error::Error>> {
         std::fs::create_dir_all(data_dir)?;
         let db_path = data_dir.join("queue.db");
         let conn = Connection::open(db_path)?;
@@ -21,7 +30,7 @@ impl OfflineQueue {
                 retry_count INTEGER DEFAULT 0
             )"
         )?;
-        Ok(OfflineQueue { conn })
+        Ok(OfflineQueue { conn, max_size })
     }
 
     pub fn enqueue(&self, entries: &[ParsedEntry]) -> Result<(), Box<dyn std::error::Error>> {
@@ -34,6 +43,19 @@ impl OfflineQueue {
             )?;
         }
         tx.commit()?;
+
+        // Evict oldest entries if queue exceeds max size
+        if self.max_size > 0 {
+            let count = self.count();
+            if count > self.max_size {
+                let excess = count - self.max_size;
+                self.conn.execute(
+                    "DELETE FROM queue WHERE id IN (SELECT id FROM queue ORDER BY id ASC LIMIT ?1)",
+                    params![excess as i64],
+                )?;
+                tracing::warn!(evicted = excess, max_size = self.max_size, "Queue exceeded max size, evicted oldest entries");
+            }
+        }
         Ok(())
     }
 

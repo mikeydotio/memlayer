@@ -6,6 +6,39 @@ on:
   pull_request:
 
 jobs:
+  version-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check version consistency across all components
+        run: |
+          VERSION=$(cat VERSION | tr -d 'v \n\r')
+          echo "VERSION file: $VERSION"
+
+          DAEMON_V=$(grep '^version' daemon/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          CLI_V=$(grep '^version' cli-rs/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          COMMON_V=$(grep '^version' memlayer-common/Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
+          SERVER_V=$(grep '^version' server/pyproject.toml | sed 's/.*"\(.*\)"/\1/')
+
+          FAIL=0
+          for component in "daemon:$DAEMON_V" "cli:$CLI_V" "common:$COMMON_V" "server:$SERVER_V"; do
+            name="${component%%:*}"
+            ver="${component##*:}"
+            if [ "$ver" != "$VERSION" ]; then
+              echo "MISMATCH: $name=$ver, expected=$VERSION"
+              FAIL=1
+            else
+              echo "OK: $name=$ver"
+            fi
+          done
+
+          if [ "$FAIL" -eq 1 ]; then
+            echo ""
+            echo "Run 'bash scripts/sync-version.sh' to fix version mismatches"
+            exit 1
+          fi
+
   test-daemon:
     runs-on: ubuntu-latest
     steps:
@@ -14,9 +47,35 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run cargo audit
+        run: cargo audit
+        working-directory: daemon
+
       - name: Run daemon tests
         run: cargo test
         working-directory: daemon
+
+  test-cli-rs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run cargo audit
+        run: cargo audit
+        working-directory: cli-rs
+
+      - name: Run CLI tests
+        run: cargo test
+        working-directory: cli-rs
 
   test-cli:
     runs-on: ubuntu-latest
@@ -39,8 +98,12 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v4
 
-      - name: Run server unit tests
+      - name: Install dependencies and run unit tests
         run: uv sync --extra dev && uv run pytest
+        working-directory: server
+
+      - name: Run pip-audit
+        run: uv pip install pip-audit && uv run pip-audit
         working-directory: server
 
       - name: Build and start test stack
@@ -72,3 +135,65 @@ jobs:
       - name: Tear down migration test stack
         if: always()
         run: docker compose -f docker-compose.migration-test.yml down -v
+
+  migration-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start test database
+        run: docker compose -f docker-compose.test.yml up -d test-db --wait
+        timeout-minutes: 3
+
+      - name: Run migration dry-run
+        run: |
+          MEMLAYER_MIGRATION_DRY_RUN=true \
+          docker compose -f docker-compose.test.yml up test-server --build --exit-code-from test-server
+        timeout-minutes: 3
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v
+
+  schema-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply migrations and capture schema
+        run: |
+          docker compose -f docker-compose.test.yml up -d --build --wait
+          sleep 5
+          docker exec memlayer-test-db pg_dump -s -U memlayer memlayer_test \
+            --no-owner --no-privileges --no-comments \
+            | grep -v '^--' | grep -v '^$' | grep -v '^SET ' | grep -v '^SELECT ' \
+            > schema_actual.sql
+
+      - name: Compare with snapshot (if exists)
+        run: |
+          if [ -f tests/fixtures/schema_snapshot.sql ]; then
+            if ! diff -u tests/fixtures/schema_snapshot.sql schema_actual.sql; then
+              echo ""
+              echo "Schema has drifted from snapshot."
+              echo "If this is expected, update the snapshot:"
+              echo "  cp schema_actual.sql tests/fixtures/schema_snapshot.sql"
+              exit 1
+            fi
+            echo "Schema matches snapshot"
+          else
+            echo "No schema snapshot found — creating initial snapshot"
+            mkdir -p tests/fixtures
+            cp schema_actual.sql tests/fixtures/schema_snapshot.sql
+            echo "::warning::No schema snapshot existed. Created initial snapshot. Please commit tests/fixtures/schema_snapshot.sql"
+          fi
+
+      - name: Upload schema as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-snapshot
+          path: schema_actual.sql
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v

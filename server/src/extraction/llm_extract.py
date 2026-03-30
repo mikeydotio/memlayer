@@ -1,11 +1,15 @@
 import json
 import logging
+import re
 
 import httpx
 
 from ..config import settings
 
 logger = logging.getLogger(__name__)
+
+# Characters not allowed in entity names (prevent XSS / injection)
+_UNSAFE_NAME_PATTERN = re.compile(r'[<>;{}]')
 
 SYSTEM_PROMPT = """You are a knowledge extraction agent for a conversation memory system.
 Given conversation entries between a developer and an AI coding assistant,
@@ -40,16 +44,25 @@ class ExtractionProvider:
         raise NotImplementedError
 
 
+def _sanitize_for_prompt(text: str, max_len: int) -> str:
+    """JSON-escape user content to prevent prompt injection."""
+    truncated = text[:max_len]
+    # json.dumps adds surrounding quotes; strip them to get just the escaped content
+    return json.dumps(truncated)[1:-1]
+
+
 def _build_user_prompt(context_entries: list[dict], new_entries: list[dict]) -> str:
     parts = []
     if context_entries:
         parts.append("[PRIOR CONTEXT — already processed, for reference only]")
         for e in context_entries:
-            parts.append(f"[{e['message_type']}] {e['raw_content'][:500]}")
+            safe_content = _sanitize_for_prompt(e['raw_content'], 500)
+            parts.append(f"[{e['message_type']}] {safe_content}")
         parts.append("")
     parts.append("[NEW ENTRIES — extract from these]")
     for e in new_entries:
-        parts.append(f"[{e['message_type']}] {e['raw_content'][:2000]}")
+        safe_content = _sanitize_for_prompt(e['raw_content'], 2000)
+        parts.append(f"[{e['message_type']}] {safe_content}")
     return "\n".join(parts)
 
 
@@ -70,28 +83,66 @@ def _parse_extraction(text: str) -> tuple[list[dict], list[dict]]:
     entities = data.get("entities", [])
     relationships = data.get("relationships", [])
 
+    # Allowed entity and relationship types
+    valid_entity_types = {
+        "concept", "decision", "bug", "pattern", "tool", "library",
+        "architecture", "file", "person", "project",
+    }
+    valid_rel_types = {
+        "supports", "contradicts", "supersedes", "depends_on", "refines",
+        "implements", "related_to", "part_of", "caused_by", "resolved_by",
+    }
+
     # Validate entity structure
     valid_entities = []
     for e in entities:
-        if isinstance(e, dict) and e.get("name") and e.get("type"):
-            valid_entities.append({
-                "name": str(e["name"])[:512],
-                "type": str(e["type"])[:64],
-                "description": str(e.get("description", ""))[:1024],
-                "confidence": float(e.get("confidence", 0.8)),
-            })
+        if not isinstance(e, dict) or not e.get("name") or not e.get("type"):
+            continue
+        name = str(e["name"])[:256]
+        etype = str(e["type"])[:64].lower()
+        # Reject names with unsafe characters
+        if _UNSAFE_NAME_PATTERN.search(name):
+            logger.debug(f"Skipping entity with unsafe name: {name[:50]}")
+            continue
+        # Reject unknown entity types
+        if etype not in valid_entity_types:
+            logger.debug(f"Skipping entity with unknown type: {etype}")
+            continue
+        try:
+            confidence = max(0.0, min(1.0, float(e.get("confidence", 0.8))))
+        except (TypeError, ValueError):
+            confidence = 0.8
+        valid_entities.append({
+            "name": name,
+            "type": etype,
+            "description": str(e.get("description", ""))[:1024],
+            "confidence": confidence,
+        })
 
     # Validate relationship structure
     valid_rels = []
     for r in relationships:
-        if isinstance(r, dict) and r.get("source") and r.get("target") and r.get("type"):
-            valid_rels.append({
-                "source": str(r["source"])[:512],
-                "target": str(r["target"])[:512],
-                "type": str(r["type"])[:64],
-                "reason": str(r.get("reason", ""))[:1024],
-                "confidence": float(r.get("confidence", 0.8)),
-            })
+        if not isinstance(r, dict) or not r.get("source") or not r.get("target") or not r.get("type"):
+            continue
+        rtype = str(r["type"])[:64].lower()
+        if rtype not in valid_rel_types:
+            logger.debug(f"Skipping relationship with unknown type: {rtype}")
+            continue
+        source = str(r["source"])[:256]
+        target = str(r["target"])[:256]
+        if _UNSAFE_NAME_PATTERN.search(source) or _UNSAFE_NAME_PATTERN.search(target):
+            continue
+        try:
+            confidence = max(0.0, min(1.0, float(r.get("confidence", 0.8))))
+        except (TypeError, ValueError):
+            confidence = 0.8
+        valid_rels.append({
+            "source": source,
+            "target": target,
+            "type": rtype,
+            "reason": str(r.get("reason", ""))[:1024],
+            "confidence": confidence,
+        })
 
     return valid_entities, valid_rels
 

@@ -27,6 +27,15 @@ async def store_response_file(
     content_bytes = content.encode("utf-8")
     size_bytes = len(content_bytes)
 
+    # Pre-check: evict before writing if hard limit would be exceeded
+    if settings.file_storage_hard_limit > 0:
+        total = await get_total_file_size()
+        if total + size_bytes > settings.file_storage_hard_limit:
+            target = int(settings.file_storage_hard_limit * 0.8)
+            evicted = await evict_lru_files(target)
+            if evicted:
+                logger.info(f"Pre-write eviction: removed {evicted} files to stay within hard limit")
+
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
 
@@ -48,15 +57,6 @@ async def store_response_file(
         source_endpoint,
         json.dumps(source_params) if source_params else None,
     )
-
-    # Sync eviction if hard limit exceeded
-    if settings.file_storage_hard_limit > 0:
-        total = await get_total_file_size()
-        if total > settings.file_storage_hard_limit:
-            target = int(settings.file_storage_hard_limit * 0.8)
-            evicted = await evict_lru_files(target)
-            if evicted:
-                logger.info(f"Hard-limit eviction: removed {evicted} files")
 
     return dict(row)
 

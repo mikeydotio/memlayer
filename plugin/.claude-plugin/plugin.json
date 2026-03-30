@@ -1,7 +1,8 @@
 {
   "name": "memlayer",
-  "description": "Cross-session memory for Claude Code — search and recall past conversations, decisions, and solutions across all projects",
+  "description": "Cross-session memory for Claude Code \u2014 search and recall past conversations, decisions, and solutions across all projects",
   "author": {
     "name": "mikeydotio"
-  }
+  },
+  "version": "2.0.0"
 }

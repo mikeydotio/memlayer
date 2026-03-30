@@ -301,3 +301,38 @@ pub struct StreamEntry {
     pub tool_name: Option<String>,
     pub created_at: String,
 }
+
+// ── Version types ──────────────────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VersionInfo {
+    pub server_version: String,
+    pub schema_version: u32,
+    pub min_client_version: Option<String>,
+    pub read_only: bool,
+    pub features: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VersionError {
+    pub error: String,
+    pub detail: String,
+    pub server_version: String,
+    #[serde(default)]
+    pub required_major: Option<u32>,
+    #[serde(default)]
+    pub min_client_version: Option<String>,
+    #[serde(default)]
+    pub update_url: Option<String>,
+}
+
+/// Server info parsed from response headers.
+#[derive(Clone, Debug, Default)]
+pub struct ServerInfo {
+    pub version: String,
+    pub schema_version: u32,
+    pub read_only: bool,
+    pub min_client_version: Option<String>,
+    pub features: Vec<String>,
+    pub upgrade_required: bool,
+}

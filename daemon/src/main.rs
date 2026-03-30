@@ -4,6 +4,7 @@ mod migration;
 mod parser;
 mod queue;
 mod sender;
+pub mod updater;
 mod watcher;
 
 use std::sync::Arc;

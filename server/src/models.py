@@ -3,20 +3,20 @@ from datetime import datetime
 
 
 class IngestEntry(BaseModel):
-    payload_hash: str
-    session_id: str
-    message_type: str
-    content_type: str
-    raw_content: str
-    timestamp: str
-    project_path: str
-    client_machine_id: str
-    slug: str | None = None
-    source_uuid: str | None = None
-    parent_uuid: str | None = None
-    tool_name: str | None = None
-    cwd: str | None = None
-    git_branch: str | None = None
+    payload_hash: str = Field(max_length=256)
+    session_id: str = Field(max_length=256)
+    message_type: str = Field(max_length=64)
+    content_type: str = Field(max_length=64)
+    raw_content: str = Field(max_length=50000)
+    timestamp: str = Field(max_length=64)
+    project_path: str = Field(max_length=1024)
+    client_machine_id: str = Field(max_length=256)
+    slug: str | None = Field(default=None, max_length=512)
+    source_uuid: str | None = Field(default=None, max_length=256)
+    parent_uuid: str | None = Field(default=None, max_length=256)
+    tool_name: str | None = Field(default=None, max_length=256)
+    cwd: str | None = Field(default=None, max_length=1024)
+    git_branch: str | None = Field(default=None, max_length=256)
 
 
 class IngestRequest(BaseModel):

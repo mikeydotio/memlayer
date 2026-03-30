@@ -1,6 +1,6 @@
 [package]
 name = "memlayer-daemon"
-version = "1.4.1"
+version = "2.0.0"
 edition = "2024"
 
 [dependencies]
@@ -15,11 +15,15 @@ notify = "8"
 notify-debouncer-full = "0.5"
 sha2 = "0.10"
 hex = "0.4"
+flate2 = "1"
+tar = "0.4"
 rusqlite = { version = "0.32", features = ["bundled"] }
 hostname = "0.4"
 glob = "0.3"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 base64 = "0.22"
+chrono = { workspace = true }
+rand = "0.8"
 
 [dev-dependencies]
 tempfile = "3"

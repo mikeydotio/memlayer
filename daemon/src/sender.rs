@@ -1,16 +1,31 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use tokio::sync::Mutex;
 use tokio::sync::watch;
 use tracing::{info, warn, error};
+use rand::Rng;
 
 use crate::config::Config;
 use crate::parser::ParsedEntry;
 use crate::queue::OfflineQueue;
 
+/// Number of consecutive failures before the circuit breaker opens.
+const CIRCUIT_BREAKER_THRESHOLD: u32 = 10;
+/// How often to check health when circuit is open (seconds).
+const CIRCUIT_BREAKER_HEALTH_INTERVAL: u64 = 60;
+
 pub struct Sender {
     client: reqwest::Client,
     config: Arc<Config>,
     queue: Arc<Mutex<OfflineQueue>>,
+    /// True when the server is in read-only mode (queue locally, retry periodically)
+    server_read_only: AtomicBool,
+    /// True when a version incompatibility has been detected (queue locally, stop retrying)
+    version_blocked: AtomicBool,
+    /// Consecutive send failures (resets on success)
+    consecutive_failures: AtomicU32,
+    /// True when circuit breaker is open (skip HTTP, queue locally, probe health)
+    circuit_open: AtomicBool,
 }
 
 #[derive(serde::Serialize)]
@@ -25,6 +40,15 @@ struct IngestResponse {
     errors: u64,
 }
 
+/// Error body from version-related server rejections.
+#[derive(serde::Deserialize)]
+struct VersionErrorBody {
+    error: String,
+    detail: String,
+    #[serde(default)]
+    server_version: String,
+}
+
 impl Sender {
     pub fn new(config: Arc<Config>, queue: Arc<Mutex<OfflineQueue>>) -> Self {
         let client = reqwest::Client::builder()
@@ -32,7 +56,25 @@ impl Sender {
             .build()
             .expect("Failed to build HTTP client");
 
-        Sender { client, config, queue }
+        Sender {
+            client,
+            config,
+            queue,
+            server_read_only: AtomicBool::new(false),
+            version_blocked: AtomicBool::new(false),
+            consecutive_failures: AtomicU32::new(0),
+            circuit_open: AtomicBool::new(false),
+        }
+    }
+
+    /// Returns true if the server reported read-only mode.
+    pub fn is_server_read_only(&self) -> bool {
+        self.server_read_only.load(Ordering::Relaxed)
+    }
+
+    /// Returns true if a version incompatibility is blocking sends.
+    pub fn is_version_blocked(&self) -> bool {
+        self.version_blocked.load(Ordering::Relaxed)
     }
 
     /// Send a batch of entries to the server.
@@ -44,6 +86,21 @@ impl Sender {
             return Ok(());
         }
 
+        // If version-blocked, queue immediately without hitting the server
+        if self.version_blocked.load(Ordering::Relaxed) {
+            return self.enqueue_entries(entries).await;
+        }
+
+        // If server is read-only, queue locally (will periodically retry)
+        if self.server_read_only.load(Ordering::Relaxed) {
+            return self.enqueue_entries(entries).await;
+        }
+
+        // Circuit breaker: if open, queue locally (health probe runs in drain loop)
+        if self.circuit_open.load(Ordering::Relaxed) {
+            return self.enqueue_entries(entries).await;
+        }
+
         let url = format!("{}/ingest", self.config.server_url);
         let req = IngestRequest { entries: entries.clone() };
 
@@ -52,10 +109,21 @@ impl Sender {
             builder = builder.header("Authorization", format!("Bearer {}", self.config.auth_token));
         }
         builder = builder.header("X-Memlayer-Version", env!("CARGO_PKG_VERSION"));
+        builder = builder.header("X-Memlayer-Component", "daemon");
 
         match builder.send().await {
             Ok(resp) => {
+                // Check read-only header on every response
+                let read_only = resp.headers()
+                    .get("x-memlayer-read-only")
+                    .and_then(|v| v.to_str().ok())
+                    .map(|v| v == "true")
+                    .unwrap_or(false);
+                self.server_read_only.store(read_only, Ordering::Relaxed);
+
                 if resp.status().is_success() {
+                    self.consecutive_failures.store(0, Ordering::Relaxed);
+                    self.circuit_open.store(false, Ordering::Relaxed);
                     if let Ok(body) = resp.json::<IngestResponse>().await {
                         info!(
                             accepted = body.accepted,
@@ -68,20 +136,111 @@ impl Sender {
                 } else {
                     let status = resp.status();
                     let code = status.as_u16();
-                    if status.is_client_error() && code != 401 && code != 413 && code != 429 {
-                        // 4xx (except auth/size/rate errors): will never succeed, don't queue
+
+                    // Version-related rejections: ALWAYS queue (never lose data)
+                    if code == 400 || code == 426 {
+                        let body_text = resp.text().await.unwrap_or_default();
+                        if let Ok(ver_err) = serde_json::from_str::<VersionErrorBody>(&body_text) {
+                            if ver_err.error == "version_incompatible" || ver_err.error == "upgrade_required" {
+                                error!(
+                                    error = %ver_err.error,
+                                    detail = %ver_err.detail,
+                                    server_version = %ver_err.server_version,
+                                    "Version incompatibility — entries will be queued locally. \
+                                     Run 'memlayer status' for details."
+                                );
+                                self.version_blocked.store(true, Ordering::Relaxed);
+                                Self::write_version_error(&ver_err.error, &ver_err.detail, &ver_err.server_version);
+                                return self.enqueue_entries(entries).await;
+                            }
+                        }
+
+                        // Non-version 400: original behavior (discard, will never succeed)
+                        error!(status = %status, "Server rejected batch with client error (not retryable)");
+                        Ok(())
+                    } else if code == 503 {
+                        // Read-only mode or server overloaded — queue for retry
+                        warn!(status = %status, "Server returned 503, queueing entries");
+                        self.server_read_only.store(true, Ordering::Relaxed);
+                        self.record_failure();
+                        self.enqueue_entries(entries).await
+                    } else if status.is_client_error() && code != 401 && code != 413 && code != 429 {
+                        // Other 4xx: will never succeed, don't queue
                         error!(status = %status, "Server rejected batch with client error (not retryable)");
                         Ok(())
                     } else {
-                        // 5xx: server error — queue for retry
+                        // 5xx or retryable: queue for retry
                         warn!(status = %status, "Server returned error, queueing entries");
+                        self.record_failure();
                         self.enqueue_entries(entries).await
                     }
                 }
             }
             Err(e) => {
                 warn!(error = %e, "Failed to send batch, queueing entries");
+                self.record_failure();
                 self.enqueue_entries(entries).await
+            }
+        }
+    }
+
+    /// Write version error details to a file for `memlayer status` to read.
+    fn write_version_error(error: &str, detail: &str, server_version: &str) {
+        let data_dir = dirs::data_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+            .join("memlayer");
+        let _ = std::fs::create_dir_all(&data_dir);
+        let error_path = data_dir.join("version_error");
+        let content = format!(
+            "error={}\ndetail={}\nserver_version={}\nclient_version={}\ntimestamp={}\n",
+            error, detail, server_version,
+            env!("CARGO_PKG_VERSION"),
+            chrono::Utc::now().to_rfc3339(),
+        );
+        if let Err(e) = std::fs::write(&error_path, &content) {
+            error!(error = %e, "Failed to write version error file");
+        }
+    }
+
+    /// Record a send failure and potentially open the circuit breaker.
+    fn record_failure(&self) {
+        let count = self.consecutive_failures.fetch_add(1, Ordering::Relaxed) + 1;
+        if count >= CIRCUIT_BREAKER_THRESHOLD && !self.circuit_open.load(Ordering::Relaxed) {
+            warn!(
+                failures = count,
+                threshold = CIRCUIT_BREAKER_THRESHOLD,
+                "Circuit breaker OPEN — will probe health before resuming sends"
+            );
+            self.circuit_open.store(true, Ordering::Relaxed);
+        }
+    }
+
+    /// Probe the server health endpoint. Returns true if healthy.
+    async fn check_health(&self) -> bool {
+        // Health endpoint is at the server root, not under /api
+        let base = self.config.server_url.trim_end_matches("/api");
+        let url = format!("{}/health", base);
+
+        let mut builder = self.client.get(&url);
+        if !self.config.auth_token.is_empty() {
+            builder = builder.header("Authorization", format!("Bearer {}", self.config.auth_token));
+        }
+
+        match builder.send().await {
+            Ok(resp) if resp.status().is_success() => {
+                info!("Health probe succeeded — circuit breaker CLOSED");
+                self.consecutive_failures.store(0, Ordering::Relaxed);
+                self.circuit_open.store(false, Ordering::Relaxed);
+                self.server_read_only.store(false, Ordering::Relaxed);
+                true
+            }
+            Ok(resp) => {
+                warn!(status = %resp.status(), "Health probe returned non-success");
+                false
+            }
+            Err(e) => {
+                warn!(error = %e, "Health probe failed");
+                false
             }
         }
     }
@@ -168,9 +327,13 @@ impl Sender {
         let mut delay_secs = 30u64;
 
         loop {
+            // Apply ±25% jitter to prevent thundering herd
+            let jitter = rand::thread_rng().gen_range(0.75..=1.25);
+            let actual_delay = (delay_secs as f64 * jitter) as u64;
+
             // Wait for delay or shutdown signal
             tokio::select! {
-                _ = tokio::time::sleep(tokio::time::Duration::from_secs(delay_secs)) => {}
+                _ = tokio::time::sleep(tokio::time::Duration::from_secs(actual_delay)) => {}
                 _ = shutdown_rx.changed() => {
                     if *shutdown_rx.borrow() {
                         // Shutdown signaled — drain all remaining entries immediately
@@ -183,6 +346,17 @@ impl Sender {
                         info!("Shutdown: offline queue drain complete");
                         return;
                     }
+                }
+            }
+
+            // If circuit breaker is open, probe health instead of draining
+            if self.circuit_open.load(Ordering::Relaxed) {
+                if self.check_health().await {
+                    // Circuit closed — fall through to drain
+                    delay_secs = 30;
+                } else {
+                    delay_secs = CIRCUIT_BREAKER_HEALTH_INTERVAL;
+                    continue;
                 }
             }
 

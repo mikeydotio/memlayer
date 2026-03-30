@@ -12,6 +12,9 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 
+# Generated version file (created by scripts/sync-version.sh)
+server/src/_version.py
+
 # Rust
 target/
 

@@ -49,13 +49,24 @@ if [[ -n "${CWD:-}" ]]; then
 fi
 
 # ── Run memlayer search ───────────────────────────────────────────
-RESULTS="$("$MEMLAYER_BIN" search "recent work, decisions, and context" $PROJECT_FLAG --limit 5 --format text 2>/dev/null)" || exit 0
+STDERR_FILE="$(mktemp 2>/dev/null || echo /tmp/memlayer_stderr_$$)"
+RESULTS="$("$MEMLAYER_BIN" search "recent work, decisions, and context" $PROJECT_FLAG --limit 5 --format text 2>"$STDERR_FILE")" || true
+STDERR="$(cat "$STDERR_FILE" 2>/dev/null || true)"
+rm -f "$STDERR_FILE" 2>/dev/null
 
-# ── Return empty if no results ────────────────────────────────────
-[[ -z "$RESULTS" ]] && exit 0
+# ── Check for version warnings in stderr ──────────────────────────
+VERSION_WARNING=""
+if printf '%s' "$STDERR" | grep -qiE 'version.*incompatible|upgrade.*required|read.only'; then
+  VERSION_WARNING="[memlayer] WARNING: Version issue detected. Run 'memlayer status' for details.
+${STDERR}
+"
+fi
+
+# ── Return empty if no results and no warnings ────────────────────
+[[ -z "$RESULTS" && -z "$VERSION_WARNING" ]] && exit 0
 
 # ── Emit systemMessage with search results ────────────────────────
-MSG="[memlayer] Cross-session memory — recent context from past sessions:
+MSG="${VERSION_WARNING}[memlayer] Cross-session memory — recent context from past sessions:
 
 ${RESULTS}
 

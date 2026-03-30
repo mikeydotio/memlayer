@@ -1,4 +1,5 @@
 import logging
+import os
 
 import asyncpg
 from pgvector.asyncpg import register_vector
@@ -46,19 +47,32 @@ async def init_pool() -> asyncpg.Pool:
             await conn.execute(f"SET search_path TO {search_path}")
         await register_vector(conn, schema=vector_schema or "public")
 
+    pool_min = int(os.environ.get("DB_POOL_MIN", "2"))
+    pool_max = int(os.environ.get("DB_POOL_MAX", "10"))
+
+    server_settings = {}
+    if extra_schemas:
+        server_settings["search_path"] = search_path
+    server_settings["idle_in_transaction_session_timeout"] = os.environ.get(
+        "DB_IDLE_TX_TIMEOUT", "60000"  # 60 seconds in ms
+    )
+    server_settings["statement_timeout"] = os.environ.get(
+        "DB_STATEMENT_TIMEOUT", "30000"  # 30 seconds in ms
+    )
+
     try:
         pool = await asyncpg.create_pool(
             settings.database_url,
-            min_size=2,
-            max_size=10,
+            min_size=pool_min,
+            max_size=pool_max,
             init=_init_connection,
-            server_settings={"search_path": search_path} if extra_schemas else None,
+            server_settings=server_settings,
         )
     except RuntimeError:
         raise
     except Exception as e:
         raise RuntimeError(
-            f"Failed to connect to database: {e}. "
+            "Failed to connect to database. "
             "Check your DATABASE_URL and ensure the database is accessible."
         ) from e
     return pool

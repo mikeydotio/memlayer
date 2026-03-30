@@ -1,9 +1,11 @@
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
+from ..config import settings
 from ..db import get_pool
+from ..rate_limit import limiter
 from ..models import IngestEntry, IngestRequest, IngestResponse
 from ..embeddings import enqueue_ids
 from ..extraction import enqueue_extraction_ids
@@ -103,7 +105,8 @@ async def _one_at_a_time_insert(pool, entries: list[IngestEntry]) -> tuple[list[
 
 
 @router.post("/ingest", response_model=IngestResponse)
-async def ingest(req: IngestRequest):
+@limiter.limit(settings.ingest_rate_limit)
+async def ingest(request: Request, req: IngestRequest):
     # Check if migration redirect is active — return 449 to redirect clients
     try:
         from ..migration_state import get_migration_manager
@@ -145,7 +148,7 @@ async def ingest(req: IngestRequest):
 
     pool = get_pool()
 
-    # Upsert sessions (batch via executemany)
+    # Upsert sessions + insert entries in a single transaction for atomicity
     session_map: dict[str, dict] = {}
     for entry in req.entries:
         if entry.session_id not in session_map:
@@ -155,25 +158,27 @@ async def ingest(req: IngestRequest):
                 "slug": entry.slug,
             }
 
-    if session_map:
-        await pool.executemany(
-            """
-            INSERT INTO claude_sessions (session_id, project_path, client_machine_id, slug)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (session_id) DO UPDATE SET last_seen_at = NOW()
-            """,
-            [
-                (sid, meta["project_path"], meta["client_machine_id"], meta["slug"])
-                for sid, meta in session_map.items()
-            ],
-        )
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            if session_map:
+                await conn.executemany(
+                    """
+                    INSERT INTO claude_sessions (session_id, project_path, client_machine_id, slug)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (session_id) DO UPDATE SET last_seen_at = NOW()
+                    """,
+                    [
+                        (sid, meta["project_path"], meta["client_machine_id"], meta["slug"])
+                        for sid, meta in session_map.items()
+                    ],
+                )
 
-    # Batch INSERT with one-at-a-time fallback on error
-    try:
-        new_ids, duplicates, errors = await _batch_insert(pool, req.entries)
-    except Exception:
-        logger.warning("Batch INSERT failed, falling back to one-at-a-time", exc_info=True)
-        new_ids, duplicates, errors = await _one_at_a_time_insert(pool, req.entries)
+            # Batch INSERT with one-at-a-time fallback on error
+            try:
+                new_ids, duplicates, errors = await _batch_insert(conn, req.entries)
+            except Exception:
+                logger.warning("Batch INSERT failed, falling back to one-at-a-time", exc_info=True)
+                new_ids, duplicates, errors = await _one_at_a_time_insert(conn, req.entries)
 
     accepted = len(new_ids)
 

@@ -42,9 +42,28 @@ class Settings(BaseSettings):
     migration_batch_size: int = 200
     server_id: str = ""  # Auto-generated UUID if empty
 
+    # Version / compatibility settings
+    min_client_version: str = ""  # Set to force client upgrades (e.g. "2.1.0")
+
+    # Notification settings (incompatible client email alerts)
+    notification_email: str = ""  # empty = disabled
+    notification_smtp_host: str = ""
+    notification_smtp_port: int = 587
+    notification_smtp_user: str = ""
+    notification_smtp_password: str = ""
+
     # Logging settings
     log_format: str = "text"  # "text" or "json"
     log_level: str = "INFO"
+
+    # Security / operational settings
+    memlayer_env: str = "development"  # "development" or "production"
+    expose_version_headers: bool = True  # Set to false to suppress version info in responses
+    ingest_rate_limit: str = "60/minute"  # Rate limit for /api/ingest endpoint
+
+    # Data retention (0 = keep forever)
+    retention_days: int = 0  # Delete entries older than N days (0 = disabled)
+    retention_check_interval_secs: float = 86400.0  # How often to run retention (default: daily)
 
 
 settings = Settings()

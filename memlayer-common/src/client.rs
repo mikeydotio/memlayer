@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 
 use crate::api_types::*;
 use crate::config::Config;
@@ -33,6 +33,15 @@ impl MemlayerClient {
                 h.insert(AUTHORIZATION, val);
             }
         }
+        // Version negotiation headers
+        h.insert(
+            HeaderName::from_static("x-memlayer-version"),
+            HeaderValue::from_static(env!("CARGO_PKG_VERSION")),
+        );
+        h.insert(
+            HeaderName::from_static("x-memlayer-component"),
+            HeaderValue::from_static("cli"),
+        );
         h
     }
 
@@ -346,6 +355,56 @@ impl MemlayerClient {
         resp.json()
             .await
             .map_err(|e| format!("Failed to parse stats: {e}"))
+    }
+
+    pub async fn get_version(&self) -> Result<VersionInfo, String> {
+        let version_url = self.base_url.replace("/api", "") + "/api/version";
+        let resp = self
+            .http
+            .get(&version_url)
+            .send()
+            .await
+            .map_err(|e| format!("Version request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(format!("Version failed: {status} {body}"));
+        }
+
+        resp.json()
+            .await
+            .map_err(|e| format!("Failed to parse version response: {e}"))
+    }
+}
+
+/// Parse version-related info from HTTP response headers.
+pub fn parse_server_headers(headers: &reqwest::header::HeaderMap) -> ServerInfo {
+    let get = |name: &str| -> String {
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string()
+    };
+
+    ServerInfo {
+        version: get("x-memlayer-server-version"),
+        schema_version: get("x-memlayer-schema-version").parse().unwrap_or(0),
+        read_only: get("x-memlayer-read-only") == "true",
+        min_client_version: {
+            let v = get("x-memlayer-min-client-version");
+            if v.is_empty() { None } else { Some(v) }
+        },
+        features: {
+            let f = get("x-memlayer-features");
+            if f.is_empty() {
+                vec![]
+            } else {
+                f.split(',').map(|s| s.trim().to_string()).collect()
+            }
+        },
+        upgrade_required: get("x-memlayer-upgrade-required") == "true",
     }
 }
 

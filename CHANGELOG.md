@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.1.0] — 2026-03-30
+
+### Security
+
+- Run Docker containers as non-root user (`server/Dockerfile`, `deploy/Dockerfile.cloud`)
+- Default server bind address changed from `0.0.0.0` to `127.0.0.1` (`docker-compose.yml`)
+- Add HTTP security headers middleware: `X-Content-Type-Options`, `X-Frame-Options`, `Content-Security-Policy`, `Referrer-Policy`
+- Add request body size limit (10MB) and field-level `max_length` constraints on all Pydantic ingest models
+- Warn when `~/.config/memlayer/env` has overly permissive file permissions (`memlayer-common/src/config.rs`)
+- Redact secrets (postgres URLs, bearer tokens, API keys) from all log output
+- Sanitize LLM extraction inputs with JSON escaping to prevent prompt injection
+- Validate extracted entity names against allowlisted types and reject unsafe characters (`<`, `>`, `;`)
+- Add ingest-only rate limiting via `slowapi` (configurable, default 60/min)
+- Add `MEMLAYER_ENV` production mode to suppress detailed error messages in responses
+- Add `EXPOSE_VERSION_HEADERS` toggle to suppress server version info from response headers
+
+### Added
+
+- Transaction isolation for ingest: session upsert + entry insert wrapped in explicit transaction for atomicity
+- Missing database indexes: `idx_entries_embedding_null` and `idx_extraction_log_status` (`db/migrations/014_missing_indexes.sql`)
+- Configurable connection pool: `DB_POOL_MIN`, `DB_POOL_MAX`, `DB_IDLE_TX_TIMEOUT`, `DB_STATEMENT_TIMEOUT` env vars
+- Database backup script with rotation (`scripts/backup.sh`)
+- Offline queue size limit with FIFO eviction (`MEMLAYER_QUEUE_MAX_SIZE`, default 50,000)
+- Jitter (±25%) in daemon exponential backoff to prevent thundering herd
+- Circuit breaker pattern: after 10 consecutive failures, daemon probes health endpoint before resuming sends
+- Pre-write file eviction: check and evict before writing instead of blocking after
+- Optional data retention policy: `RETENTION_DAYS` env var (default 0 = keep forever)
+- Schema fingerprint enforcement: `MEMLAYER_STRICT_FINGERPRINT` env var to fail startup on mismatch
+- Hardening test suite (`server/tests/test_hardening.py`): 16 tests covering secret redaction, model validation, extraction sanitization
+
+### Changed
+
+- Entity detail endpoint consolidated from 5 sequential queries to single CTE-based query (`server/src/routes/graph.py`)
+- Python dependencies pinned to `>=resolved,<next_major` ranges with versions from lock file
+- `pip-audit` and `cargo audit` steps added to CI workflow
+
+_[manual]_
+
 ## [v2.0.0] — 2026-03-30
 
 ### Added

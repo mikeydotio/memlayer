@@ -9,9 +9,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 COPY server/pyproject.toml .
 RUN uv sync --no-cache --no-dev
 
+ARG MEMLAYER_VERSION=0.0.0-dev
+
 COPY server/src/ ./src/
 COPY server/static/ ./static/
 COPY db/migrations/ ./migrations/
 
+RUN echo "__version__ = \"${MEMLAYER_VERSION}\"" > src/_version.py
+
+RUN groupadd -r app && useradd -r -g app app \
+    && mkdir -p /data/response_files /data/backups \
+    && chown -R app:app /data /app
+
+USER app
 EXPOSE 8420
 CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8420"]

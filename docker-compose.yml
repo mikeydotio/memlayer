@@ -24,6 +24,8 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
+      args:
+        MEMLAYER_VERSION: "${MEMLAYER_VERSION:-0.0.0-dev}"
     container_name: memlayer-server
     restart: unless-stopped
     depends_on:
@@ -53,7 +55,7 @@ services:
       - response-files:/data/response_files
       - ./db/migrations:/app/migrations:ro
     ports:
-      - "${MEMLAYER_BIND_ADDR:-0.0.0.0}:8420:8420"
+      - "${MEMLAYER_BIND_ADDR:-127.0.0.1}:8420:8420"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8420/health"]
       interval: 10s

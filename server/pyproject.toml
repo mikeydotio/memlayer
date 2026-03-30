@@ -1,18 +1,19 @@
 [project]
 name = "memlayer-server"
-version = "1.4.1"
+version = "2.0.0"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.34",
-    "asyncpg>=0.30",
-    "pgvector>=0.3",
-    "openai>=1.60",
-    "httpx>=0.28",
-    "pydantic>=2.10",
-    "pydantic-settings>=2.7",
-    "numpy>=1.26",
-    "cryptography>=44.0",
+    "fastapi>=0.135.1,<1",
+    "uvicorn[standard]>=0.41.0,<1",
+    "asyncpg>=0.31.0,<1",
+    "pgvector>=0.4.2,<1",
+    "openai>=2.26.0,<3",
+    "httpx>=0.28.1,<1",
+    "pydantic>=2.12.5,<3",
+    "pydantic-settings>=2.13.1,<3",
+    "numpy>=2.4.3,<3",
+    "cryptography>=46.0.5,<47",
+    "slowapi>=0.1.9,<1",
 ]
 
 [project.optional-dependencies]

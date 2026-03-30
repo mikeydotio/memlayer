@@ -4,9 +4,11 @@ pub mod entity;
 pub mod graph;
 pub mod read_file;
 pub mod recent;
+pub mod rollback;
 pub mod search;
 pub mod session;
 pub mod status;
+pub mod update;
 
 use clap::Subcommand;
 
@@ -31,6 +33,10 @@ pub enum Commands {
     Entity(entity::EntityArgs),
     /// Knowledge graph operations
     Graph(graph::GraphArgs),
+    /// Check for CLI updates
+    Update(update::UpdateArgs),
+    /// Rollback to a previously archived CLI version
+    Rollback(rollback::RollbackArgs),
 }
 
 impl Commands {
@@ -45,6 +51,8 @@ impl Commands {
             Commands::Entities(args) => entities::run(args).await,
             Commands::Entity(args) => entity::run(args).await,
             Commands::Graph(args) => graph::run(args).await,
+            Commands::Update(args) => update::run(args).await,
+            Commands::Rollback(args) => rollback::run(args).await,
         }
     }
 }

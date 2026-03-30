@@ -1,7 +1,9 @@
 """Knowledge graph endpoints: stats, entity browsing, relationships."""
 
+import json as _json
 import logging
 import time
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -312,89 +314,186 @@ async def create_entity(body: EntityCreate):
 async def get_entity(entity_id: int):
     pool = get_pool()
 
-    row = await pool.fetchrow("SELECT * FROM entities WHERE id = $1", entity_id)
-    if not row:
+    # Single CTE-based query that fetches entity, aliases, mentions, and
+    # relationships (both directions) in one database round-trip.
+    rows = await pool.fetch(
+        """
+        WITH ent AS (
+            SELECT * FROM entities WHERE id = $1
+        ),
+        als AS (
+            SELECT id, alias
+            FROM entity_aliases
+            WHERE entity_id = $1
+            ORDER BY id
+        ),
+        mnts AS (
+            SELECT id, entry_id, session_id, mention_text,
+                   context_snippet, confidence, created_at
+            FROM entity_mentions
+            WHERE entity_id = $1
+            ORDER BY created_at DESC
+            LIMIT 50
+        ),
+        rels_out AS (
+            SELECT er.id AS rel_id, er.relationship_type,
+                   er.description AS rel_description,
+                   er.confidence AS rel_confidence,
+                   er.valid_from, er.valid_until, er.created_at AS rel_created_at,
+                   e.id, e.canonical_name, e.entity_type, e.description,
+                   e.project_path, e.status, e.confidence, e.mention_count,
+                   e.first_seen_at, e.last_seen_at
+            FROM entity_relationships er
+            JOIN entities e ON e.id = er.target_entity_id
+            WHERE er.source_entity_id = $1
+        ),
+        rels_in AS (
+            SELECT er.id AS rel_id, er.relationship_type,
+                   er.description AS rel_description,
+                   er.confidence AS rel_confidence,
+                   er.valid_from, er.valid_until, er.created_at AS rel_created_at,
+                   e.id, e.canonical_name, e.entity_type, e.description,
+                   e.project_path, e.status, e.confidence, e.mention_count,
+                   e.first_seen_at, e.last_seen_at
+            FROM entity_relationships er
+            JOIN entities e ON e.id = er.source_entity_id
+            WHERE er.target_entity_id = $1
+        )
+        SELECT 'entity' AS _section, row_to_json(ent.*)::text AS data
+            FROM ent
+        UNION ALL
+        SELECT 'alias', json_build_object('id', id, 'alias', alias)::text
+            FROM als
+        UNION ALL
+        SELECT 'mention', json_build_object(
+                'id', id, 'entry_id', entry_id, 'session_id', session_id,
+                'mention_text', mention_text, 'context_snippet', context_snippet,
+                'confidence', confidence, 'created_at', created_at
+            )::text
+            FROM mnts
+        UNION ALL
+        SELECT 'rel_out', json_build_object(
+                'rel_id', rel_id, 'relationship_type', relationship_type,
+                'rel_description', rel_description, 'rel_confidence', rel_confidence,
+                'valid_from', valid_from, 'valid_until', valid_until,
+                'rel_created_at', rel_created_at,
+                'id', id, 'canonical_name', canonical_name,
+                'entity_type', entity_type, 'description', description,
+                'project_path', project_path, 'status', status,
+                'confidence', confidence, 'mention_count', mention_count,
+                'first_seen_at', first_seen_at, 'last_seen_at', last_seen_at
+            )::text
+            FROM rels_out
+        UNION ALL
+        SELECT 'rel_in', json_build_object(
+                'rel_id', rel_id, 'relationship_type', relationship_type,
+                'rel_description', rel_description, 'rel_confidence', rel_confidence,
+                'valid_from', valid_from, 'valid_until', valid_until,
+                'rel_created_at', rel_created_at,
+                'id', id, 'canonical_name', canonical_name,
+                'entity_type', entity_type, 'description', description,
+                'project_path', project_path, 'status', status,
+                'confidence', confidence, 'mention_count', mention_count,
+                'first_seen_at', first_seen_at, 'last_seen_at', last_seen_at
+            )::text
+            FROM rels_in
+        """,
+        entity_id,
+    )
+
+    # Parse sections from the unified result set
+    entity_data = None
+    aliases_list: list[AliasInfo] = []
+    mentions_list: list[MentionInfo] = []
+    relationships: list[RelationshipInfo] = []
+
+    def _parse_ts(val) -> str:
+        """Parse a timestamp value to ISO string."""
+        if val is None:
+            return ""
+        if isinstance(val, datetime):
+            return val.isoformat()
+        if isinstance(val, str) and val:
+            return val
+        return ""
+
+    def _parse_ts_optional(val) -> str | None:
+        """Parse an optional timestamp (may be None)."""
+        if val is None:
+            return None
+        if isinstance(val, datetime):
+            return val.isoformat()
+        if isinstance(val, str) and val:
+            return val
+        return None
+
+    for row in rows:
+        section = row["_section"]
+        d = _json.loads(row["data"])
+
+        if section == "entity":
+            entity_data = d
+        elif section == "alias":
+            aliases_list.append(AliasInfo(id=d["id"], alias=d["alias"]))
+        elif section == "mention":
+            mentions_list.append(MentionInfo(
+                id=d["id"],
+                entry_id=d["entry_id"],
+                session_id=d["session_id"],
+                mention_text=d["mention_text"],
+                context_snippet=d["context_snippet"],
+                confidence=d["confidence"],
+                created_at=_parse_ts(d["created_at"]),
+            ))
+        elif section in ("rel_out", "rel_in"):
+            entity_info = EntityInfo(
+                id=d["id"],
+                canonical_name=d["canonical_name"],
+                entity_type=d["entity_type"],
+                description=d["description"],
+                project_path=d["project_path"],
+                status=d["status"],
+                confidence=d["confidence"],
+                mention_count=d["mention_count"],
+                first_seen_at=_parse_ts(d["first_seen_at"]),
+                last_seen_at=_parse_ts(d["last_seen_at"]),
+            )
+            relationships.append(RelationshipInfo(
+                id=d["rel_id"],
+                direction="outgoing" if section == "rel_out" else "incoming",
+                related_entity=entity_info,
+                relationship_type=d["relationship_type"],
+                description=d["rel_description"],
+                confidence=d["rel_confidence"],
+                valid_from=_parse_ts(d["valid_from"]),
+                valid_until=_parse_ts_optional(d["valid_until"]),
+            ))
+
+    if entity_data is None:
         raise HTTPException(404, f"Entity {entity_id} not found")
 
-    aliases = await pool.fetch(
-        "SELECT id, alias FROM entity_aliases WHERE entity_id = $1 ORDER BY id",
-        entity_id,
+    entity = EntityInfo(
+        id=entity_data["id"],
+        canonical_name=entity_data["canonical_name"],
+        entity_type=entity_data["entity_type"],
+        description=entity_data["description"],
+        project_path=entity_data["project_path"],
+        status=entity_data["status"],
+        confidence=entity_data["confidence"],
+        mention_count=entity_data["mention_count"],
+        first_seen_at=_parse_ts(entity_data["first_seen_at"]),
+        last_seen_at=_parse_ts(entity_data["last_seen_at"]),
     )
 
-    mentions = await pool.fetch(
-        """
-        SELECT id, entry_id, session_id, mention_text, context_snippet, confidence, created_at
-        FROM entity_mentions WHERE entity_id = $1
-        ORDER BY created_at DESC LIMIT 50
-        """,
-        entity_id,
+    # Sort relationships by creation time (newest first), matching original ORDER BY
+    relationships.sort(
+        key=lambda r: r.valid_from or "", reverse=True
     )
-
-    # Outgoing relationships
-    outgoing = await pool.fetch(
-        """
-        SELECT er.id AS rel_id, er.relationship_type, er.description AS rel_description,
-               er.confidence AS rel_confidence, er.valid_from, er.valid_until, e.*
-        FROM entity_relationships er
-        JOIN entities e ON e.id = er.target_entity_id
-        WHERE er.source_entity_id = $1
-        ORDER BY er.created_at DESC
-        """,
-        entity_id,
-    )
-
-    # Incoming relationships
-    incoming = await pool.fetch(
-        """
-        SELECT er.id AS rel_id, er.relationship_type, er.description AS rel_description,
-               er.confidence AS rel_confidence, er.valid_from, er.valid_until, e.*
-        FROM entity_relationships er
-        JOIN entities e ON e.id = er.source_entity_id
-        WHERE er.target_entity_id = $1
-        ORDER BY er.created_at DESC
-        """,
-        entity_id,
-    )
-
-    relationships = []
-    for r in outgoing:
-        relationships.append(RelationshipInfo(
-            id=r["rel_id"],
-            direction="outgoing",
-            related_entity=_entity_from_row(r),
-            relationship_type=r["relationship_type"],
-            description=r["rel_description"],
-            confidence=r["rel_confidence"],
-            valid_from=r["valid_from"].isoformat() if r["valid_from"] else "",
-            valid_until=r["valid_until"].isoformat() if r["valid_until"] else None,
-        ))
-    for r in incoming:
-        relationships.append(RelationshipInfo(
-            id=r["rel_id"],
-            direction="incoming",
-            related_entity=_entity_from_row(r),
-            relationship_type=r["relationship_type"],
-            description=r["rel_description"],
-            confidence=r["rel_confidence"],
-            valid_from=r["valid_from"].isoformat() if r["valid_from"] else "",
-            valid_until=r["valid_until"].isoformat() if r["valid_until"] else None,
-        ))
 
     return EntityDetail(
-        entity=_entity_from_row(row),
-        aliases=[AliasInfo(id=a["id"], alias=a["alias"]) for a in aliases],
-        mentions=[
-            MentionInfo(
-                id=m["id"],
-                entry_id=m["entry_id"],
-                session_id=m["session_id"],
-                mention_text=m["mention_text"],
-                context_snippet=m["context_snippet"],
-                confidence=m["confidence"],
-                created_at=m["created_at"].isoformat() if m["created_at"] else "",
-            )
-            for m in mentions
-        ],
+        entity=entity,
+        aliases=aliases_list,
+        mentions=mentions_list,
         relationships=relationships,
     )
 

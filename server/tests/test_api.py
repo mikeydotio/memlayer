@@ -27,13 +27,23 @@ def _patch_settings():
 
 @pytest.fixture
 def mock_pool():
-    """A mock asyncpg pool."""
+    """A mock asyncpg pool with acquire/transaction context manager support."""
     pool = AsyncMock()
     pool.fetch = AsyncMock(return_value=[])
     pool.fetchrow = AsyncMock(return_value=None)
     pool.fetchval = AsyncMock(return_value=1)
     pool.execute = AsyncMock()
+    pool.executemany = AsyncMock()
     pool.close = AsyncMock()
+
+    # Support `async with pool.acquire() as conn: async with conn.transaction():`
+    conn = AsyncMock()
+    conn.fetch = pool.fetch
+    conn.fetchrow = pool.fetchrow
+    conn.execute = pool.execute
+    conn.executemany = pool.executemany
+    conn.transaction = MagicMock(return_value=AsyncMock())
+    pool.acquire = MagicMock(return_value=AsyncMock(__aenter__=AsyncMock(return_value=conn), __aexit__=AsyncMock()))
     return pool
 
 

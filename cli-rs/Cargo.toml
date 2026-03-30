@@ -20,6 +20,7 @@ crossterm = { version = "0.28", features = ["event-stream"] }
 tui-input = "0.11"
 color-eyre = "0.6"
 chrono = { workspace = true }
+dirs = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 futures = "0.3"
