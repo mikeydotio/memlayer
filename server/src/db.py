@@ -13,7 +13,7 @@ pool: asyncpg.Pool | None = None
 async def init_pool() -> asyncpg.Pool:
     global pool
 
-    # Detect if vector extension is in a non-public schema (e.g. Supabase
+    # Detect if extensions are in a non-public schema (e.g. Supabase
     # installs extensions in the 'extensions' schema). We probe once and
     # set the search_path accordingly so migrations and queries work.
     probe = await asyncpg.connect(settings.database_url)
@@ -23,6 +23,11 @@ async def init_pool() -> asyncpg.Pool:
             JOIN pg_namespace n ON n.oid = e.extnamespace
             WHERE e.extname = 'vector'
         """)
+        trgm_schema = await probe.fetchval("""
+            SELECT nspname FROM pg_extension e
+            JOIN pg_namespace n ON n.oid = e.extnamespace
+            WHERE e.extname = 'pg_trgm'
+        """)
     finally:
         await probe.close()
 
@@ -30,6 +35,9 @@ async def init_pool() -> asyncpg.Pool:
     if vector_schema and vector_schema not in ("public", "pg_catalog"):
         logger.info(f"vector extension found in '{vector_schema}' schema, adding to search_path")
         extra_schemas.append(vector_schema)
+    if trgm_schema and trgm_schema not in ("public", "pg_catalog") and trgm_schema not in extra_schemas:
+        logger.info(f"pg_trgm extension found in '{trgm_schema}' schema, adding to search_path")
+        extra_schemas.append(trgm_schema)
 
     search_path = ", ".join(["public"] + extra_schemas)
 
