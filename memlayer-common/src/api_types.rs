@@ -32,6 +32,10 @@ pub struct SearchResult {
     pub content_truncated: bool,
     #[serde(default)]
     pub content_length: i64,
+    #[serde(default)]
+    pub graph_boost: f64,
+    #[serde(default)]
+    pub related_entities: Option<Vec<EntityRef>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -60,6 +64,10 @@ pub struct SearchRequest {
     pub types: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub truncate: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expand_graph: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub graph_weight: Option<f64>,
 }
 
 // ── Session types ───────────────────────────────────────────────────
@@ -159,6 +167,113 @@ pub struct StatsEmbeddings {
 pub struct DayActivity {
     pub day: String,
     pub entries: i64,
+}
+
+// ── Knowledge graph types ───────────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EntityRef {
+    pub id: i64,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub entity_type: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EntityInfo {
+    pub id: i64,
+    pub canonical_name: String,
+    pub entity_type: String,
+    pub description: Option<String>,
+    pub project_path: Option<String>,
+    pub status: String,
+    pub confidence: f64,
+    pub mention_count: i64,
+    pub first_seen_at: String,
+    pub last_seen_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AliasInfo {
+    pub id: i64,
+    pub alias: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MentionInfo {
+    pub id: i64,
+    pub entry_id: i64,
+    pub session_id: String,
+    pub mention_text: Option<String>,
+    pub context_snippet: Option<String>,
+    pub confidence: f64,
+    pub created_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RelationshipInfo {
+    pub id: i64,
+    pub direction: String,
+    pub related_entity: EntityInfo,
+    pub relationship_type: String,
+    pub description: Option<String>,
+    pub confidence: f64,
+    pub valid_from: String,
+    pub valid_until: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EntityDetail {
+    pub entity: EntityInfo,
+    pub aliases: Vec<AliasInfo>,
+    pub mentions: Vec<MentionInfo>,
+    pub relationships: Vec<RelationshipInfo>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EntitiesPage {
+    pub entities: Vec<EntityInfo>,
+    pub total: i64,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GraphEdge {
+    pub id: i64,
+    pub source_id: i64,
+    pub target_id: i64,
+    pub relationship_type: String,
+    pub confidence: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GraphNeighbors {
+    pub center: EntityInfo,
+    pub nodes: Vec<EntityInfo>,
+    pub edges: Vec<GraphEdge>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GraphStatsResponse {
+    pub entities: GraphEntityStats,
+    pub relationships: GraphRelStats,
+    pub mentions: i64,
+    pub extraction: serde_json::Value,
+    pub top_entities: Vec<EntityRef>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GraphEntityStats {
+    pub active: i64,
+    pub total: i64,
+    pub by_type: std::collections::HashMap<String, i64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GraphRelStats {
+    pub active: i64,
+    pub by_type: std::collections::HashMap<String, i64>,
 }
 
 // ── SSE stream types ────────────────────────────────────────────────

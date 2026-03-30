@@ -1,4 +1,5 @@
 pub mod browse;
+pub mod graph;
 pub mod live;
 pub mod search;
 pub mod stats;
@@ -23,10 +24,11 @@ pub enum Tab {
     Search,
     Live,
     Stats,
+    Graph,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 4] = [Tab::Browse, Tab::Search, Tab::Live, Tab::Stats];
+    pub const ALL: [Tab; 5] = [Tab::Browse, Tab::Search, Tab::Live, Tab::Stats, Tab::Graph];
 
     pub fn title(&self) -> &'static str {
         match self {
@@ -34,6 +36,7 @@ impl Tab {
             Tab::Search => "Search",
             Tab::Live => "Live",
             Tab::Stats => "Stats",
+            Tab::Graph => "Graph",
         }
     }
 
@@ -43,15 +46,17 @@ impl Tab {
             Tab::Search => 1,
             Tab::Live => 2,
             Tab::Stats => 3,
+            Tab::Graph => 4,
         }
     }
 
     pub fn from_index(i: usize) -> Self {
-        match i % 4 {
+        match i % 5 {
             0 => Tab::Browse,
             1 => Tab::Search,
             2 => Tab::Live,
-            _ => Tab::Stats,
+            3 => Tab::Stats,
+            _ => Tab::Graph,
         }
     }
 }

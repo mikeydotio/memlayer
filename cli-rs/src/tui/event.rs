@@ -31,6 +31,9 @@ pub enum ApiResponsePayload {
     Health(Result<serde_json::Value, String>),
     Search(Result<SearchResponse, String>),
     FullEntry(Result<SessionSummary, String>),
+    GraphStats(Result<GraphStatsResponse, String>),
+    GraphEntities(Result<EntitiesPage, String>),
+    GraphEntityDetail(Result<EntityDetail, String>),
 }
 
 /// Actions that tabs can request from the app.
@@ -45,4 +48,6 @@ pub enum Action {
     FetchHealth,
     RunSearch(SearchRequest),
     FetchFullEntry(String, i64),
+    FetchGraphData,
+    FetchEntityDetail(i64),
 }

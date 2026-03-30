@@ -12,6 +12,7 @@ use memlayer_common::config::Config;
 use super::event::*;
 use super::sse;
 use super::tabs::browse::BrowseTab;
+use super::tabs::graph::GraphTab;
 use super::tabs::live::LiveTab;
 use super::tabs::search::SearchTab;
 use super::tabs::stats::StatsTab;
@@ -27,6 +28,7 @@ pub struct App {
     search: SearchTab,
     live: LiveTab,
     stats: StatsTab,
+    graph: GraphTab,
 
     status_message: String,
     tick_count: u32,
@@ -44,6 +46,7 @@ impl App {
             search: SearchTab::new(),
             live: LiveTab::new(),
             stats: StatsTab::new(),
+            graph: GraphTab::new(),
             status_message: String::new(),
             tick_count: 0,
         }
@@ -103,6 +106,7 @@ impl App {
             Tab::Search => &mut self.search,
             Tab::Live => &mut self.live,
             Tab::Stats => &mut self.stats,
+            Tab::Graph => &mut self.graph,
         }
     }
 
@@ -131,11 +135,11 @@ impl App {
                     return;
                 }
                 KeyCode::Tab if !self.is_input_focused() => {
-                    self.switch_tab((self.active_tab.index() + 1) % 4, tx).await;
+                    self.switch_tab((self.active_tab.index() + 1) % 5, tx).await;
                     return;
                 }
                 KeyCode::BackTab if !self.is_input_focused() => {
-                    self.switch_tab((self.active_tab.index() + 3) % 4, tx).await;
+                    self.switch_tab((self.active_tab.index() + 4) % 5, tx).await;
                     return;
                 }
                 KeyCode::Char('1') if !self.is_input_focused() => {
@@ -152,6 +156,10 @@ impl App {
                 }
                 KeyCode::Char('4') if !self.is_input_focused() => {
                     self.switch_tab(3, tx).await;
+                    return;
+                }
+                KeyCode::Char('5') if !self.is_input_focused() => {
+                    self.switch_tab(4, tx).await;
                     return;
                 }
                 _ => {}
@@ -186,6 +194,7 @@ impl App {
         self.search.handle_event(&event);
         self.live.handle_event(&event);
         self.stats.handle_event(&event);
+        self.graph.handle_event(&event);
 
         // Handle actions from events
         if let AppEvent::SseStatus(ref status) = event {
@@ -212,6 +221,11 @@ impl App {
         // Stats auto-refresh
         if matches!(self.active_tab, Tab::Stats) && self.stats.needs_refresh() {
             self.dispatch_action(Action::FetchStats, tx).await;
+        }
+
+        // Graph auto-refresh
+        if matches!(self.active_tab, Tab::Graph) && self.graph.needs_refresh() {
+            self.dispatch_action(Action::FetchGraphData, tx).await;
         }
     }
 
@@ -292,6 +306,27 @@ impl App {
                     .ok();
                 });
             }
+            Action::FetchGraphData => {
+                let tx2 = tx.clone();
+                let client2 = client.clone();
+                tokio::spawn(async move {
+                    let result = client.get_graph_stats().await;
+                    tx.send(AppEvent::ApiResponse(ApiResponsePayload::GraphStats(result)))
+                        .ok();
+                });
+                tokio::spawn(async move {
+                    let result = client2.get_entities(None, None, None, "active", 50, 0).await;
+                    tx2.send(AppEvent::ApiResponse(ApiResponsePayload::GraphEntities(result)))
+                        .ok();
+                });
+            }
+            Action::FetchEntityDetail(entity_id) => {
+                tokio::spawn(async move {
+                    let result = client.get_entity(entity_id).await;
+                    tx.send(AppEvent::ApiResponse(ApiResponsePayload::GraphEntityDetail(result)))
+                        .ok();
+                });
+            }
         }
     }
 
@@ -319,6 +354,7 @@ impl App {
             Tab::Search => self.search.render(frame, chunks[1]),
             Tab::Live => self.live.render(frame, chunks[1]),
             Tab::Stats => self.stats.render(frame, chunks[1]),
+            Tab::Graph => self.graph.render(frame, chunks[1]),
         }
 
         // Status bar

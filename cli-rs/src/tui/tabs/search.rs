@@ -55,6 +55,8 @@ impl SearchTab {
                 before: None,
                 types: None,
                 truncate: None,
+                expand_graph: None,
+                graph_weight: None,
             }))
         } else {
             self.pending_search = false;
@@ -103,6 +105,8 @@ impl TabComponent for SearchTab {
                             before: None,
                             types: None,
                             truncate: None,
+                            expand_graph: None,
+                            graph_weight: None,
                         }))
                     } else {
                         None

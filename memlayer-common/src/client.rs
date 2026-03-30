@@ -248,6 +248,86 @@ impl MemlayerClient {
             .map_err(|e| format!("Failed to parse session entries: {e}"))
     }
 
+    // ── Knowledge graph methods ──────────────────────────────────────
+
+    pub async fn get_entities(
+        &self,
+        query: Option<&str>,
+        entity_type: Option<&str>,
+        project_path: Option<&str>,
+        status: &str,
+        limit: u32,
+        offset: u32,
+    ) -> Result<EntitiesPage, String> {
+        let mut url = format!(
+            "{}/entities?status={}&limit={}&offset={}",
+            self.base_url, urlencoding::encode(status), limit, offset
+        );
+        if let Some(q) = query {
+            url.push_str(&format!("&q={}", urlencoding::encode(q)));
+        }
+        if let Some(t) = entity_type {
+            url.push_str(&format!("&type={}", urlencoding::encode(t)));
+        }
+        if let Some(p) = project_path {
+            url.push_str(&format!("&project_path={}", urlencoding::encode(p)));
+        }
+
+        let resp = self.http.get(&url).headers(self.headers()).send().await
+            .map_err(|e| format!("Entities request failed: {e}"))?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(format!("Entities failed: {status} {body}"));
+        }
+        resp.json().await.map_err(|e| format!("Failed to parse entities: {e}"))
+    }
+
+    pub async fn get_entity(&self, entity_id: i64) -> Result<EntityDetail, String> {
+        let resp = self.http
+            .get(format!("{}/entities/{}", self.base_url, entity_id))
+            .headers(self.headers()).send().await
+            .map_err(|e| format!("Entity request failed: {e}"))?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(format!("Entity failed: {status} {body}"));
+        }
+        resp.json().await.map_err(|e| format!("Failed to parse entity: {e}"))
+    }
+
+    pub async fn get_entity_neighbors(
+        &self,
+        entity_id: i64,
+        hops: u32,
+    ) -> Result<GraphNeighbors, String> {
+        let resp = self.http
+            .get(format!("{}/entities/{}/neighbors?hops={}", self.base_url, entity_id, hops))
+            .headers(self.headers()).send().await
+            .map_err(|e| format!("Neighbors request failed: {e}"))?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(format!("Neighbors failed: {status} {body}"));
+        }
+        resp.json().await.map_err(|e| format!("Failed to parse neighbors: {e}"))
+    }
+
+    pub async fn get_graph_stats(&self) -> Result<GraphStatsResponse, String> {
+        let resp = self.http
+            .get(format!("{}/graph/stats", self.base_url))
+            .headers(self.headers()).send().await
+            .map_err(|e| format!("Graph stats request failed: {e}"))?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(format!("Graph stats failed: {status} {body}"));
+        }
+        resp.json().await.map_err(|e| format!("Failed to parse graph stats: {e}"))
+    }
+
+    // ── Stats ──────────────────────────────────────────────────────────
+
     pub async fn get_stats(&self) -> Result<StatsResponse, String> {
         let resp = self
             .http

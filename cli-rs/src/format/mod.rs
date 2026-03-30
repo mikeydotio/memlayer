@@ -1,3 +1,5 @@
+pub mod entities;
+pub mod entity;
 pub mod error;
 pub mod read_file;
 pub mod recent;

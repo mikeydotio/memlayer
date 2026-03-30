@@ -43,6 +43,14 @@ pub struct SearchArgs {
     #[arg(long)]
     full: bool,
 
+    /// Expand results with graph-connected entries
+    #[arg(long)]
+    expand_graph: bool,
+
+    /// Weight for graph-based re-ranking (0.0-2.0, default 0.5)
+    #[arg(long)]
+    graph_weight: Option<f64>,
+
     /// Output format: json or text
     #[arg(long, default_value = "json")]
     format: String,
@@ -71,6 +79,8 @@ pub async fn run(args: SearchArgs) -> Result<(), String> {
             before: args.before,
             types,
             truncate: if args.full { Some(false) } else { None },
+            expand_graph: if args.expand_graph { Some(true) } else { None },
+            graph_weight: args.graph_weight,
         })
         .await?;
 

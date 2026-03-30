@@ -1,4 +1,7 @@
 pub mod dashboard;
+pub mod entities;
+pub mod entity;
+pub mod graph;
 pub mod read_file;
 pub mod recent;
 pub mod search;
@@ -22,6 +25,12 @@ pub enum Commands {
     Status(status::StatusArgs),
     /// Launch interactive TUI dashboard
     Dashboard,
+    /// List and search knowledge graph entities
+    Entities(entities::EntitiesArgs),
+    /// View entity detail and relationships
+    Entity(entity::EntityArgs),
+    /// Knowledge graph operations
+    Graph(graph::GraphArgs),
 }
 
 impl Commands {
@@ -33,6 +42,9 @@ impl Commands {
             Commands::ReadFile(args) => read_file::run(args).await,
             Commands::Status(args) => status::run(args).await,
             Commands::Dashboard => dashboard::run().await,
+            Commands::Entities(args) => entities::run(args).await,
+            Commands::Entity(args) => entity::run(args).await,
+            Commands::Graph(args) => graph::run(args).await,
         }
     }
 }
