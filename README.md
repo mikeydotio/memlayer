@@ -1,10 +1,10 @@
 # Memlayer
 
-> Persistent, searchable memory for Claude Code conversations.
+> Persistent, searchable memory with knowledge graph for Claude Code conversations.
 
-Memlayer gives Claude Code perfect recall across sessions. Every conversation is automatically indexed and searchable — Claude can remember what you worked on, how you solved problems, and what decisions were made.
+Memlayer gives Claude Code perfect recall across sessions. Every conversation is automatically indexed and searchable — Claude can remember what you worked on, how you solved problems, and what decisions were made. A knowledge graph layer extracts entities and typed relationships from your conversations, connecting ideas across sessions and surfacing patterns you'd otherwise miss.
 
-Start a Claude Code session and ask *"Do you remember how we fixed the SSH tunnel issue last week?"* — Claude searches your indexed conversation history and returns the exact session where you debugged it together.
+Start a Claude Code session and ask *"Do you remember how we fixed the SSH tunnel issue last week?"* — Claude searches your indexed conversation history and returns the exact session where you debugged it together. Ask *"What decisions have we superseded?"* — Claude browses the knowledge graph to find decisions that were later replaced.
 
 ## How It Works
 
@@ -25,15 +25,15 @@ Start a Claude Code session and ask *"Do you remember how we fixed the SSH tunne
    +-------------+     search API                 |
    |  Claude     | <------------------------------+
    |  Code       |    via `memlayer` CLI
-   |  session    |    (TypeScript, Bash tool)
+   |  session    |    (Rust, Bash tool)
    +-------------+
                        4. Claude recalls
 ```
 
 1. **Watch** — The daemon tails Claude Code's JSONL logs in real time.
 2. **Parse** — Each line is parsed into structured entries and batched to the server over HTTP.
-3. **Store** — The server stores entries in PostgreSQL with full-text search vectors. Optionally, embeddings are generated asynchronously for semantic search. Search uses Reciprocal Rank Fusion (RRF) to combine both methods.
-4. **Recall** — Claude calls the `memlayer` CLI (`memlayer search`, `memlayer session`) to query the server and pull relevant history into the current session.
+3. **Store & Index** — The server stores entries in PostgreSQL with full-text search vectors. Embeddings are generated asynchronously for semantic search. Search uses Reciprocal Rank Fusion (RRF) to combine both methods. Optionally, an LLM extraction pipeline identifies entities (concepts, decisions, bugs, patterns, tools) and typed relationships (supports, contradicts, supersedes, depends_on) to build a knowledge graph.
+4. **Recall** — Claude calls the `memlayer` CLI to query the server. `memlayer search` finds entries via hybrid search; `--expand-graph` surfaces connected entries through the knowledge graph. `memlayer entities` and `memlayer entity` browse extracted concepts and their relationships.
 
 ## Quick Start: Self-Hosted
 

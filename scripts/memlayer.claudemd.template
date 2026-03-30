@@ -1,13 +1,25 @@
-## Memory (Cross-Session Recall)
+## Memory (Cross-Session Recall + Knowledge Graph)
 
-The `memlayer` CLI provides commands to search past conversations:
+The `memlayer` CLI provides commands to search past conversations and browse a knowledge graph of extracted concepts and relationships:
+
+**Search & recall:**
 - `memlayer recent` — list recent sessions by last activity (great for "what was I working on?")
 - `memlayer search "<query>"` — hybrid search across all past Claude Code conversations
+- `memlayer search "<query>" --expand-graph` — also surface entries connected through the knowledge graph
 - `memlayer session <session-uuid>` — full chronological session history
 - `memlayer read-file <file-uuid> --start <n> --end <n>` — read specific line ranges from large response files
 
+**Knowledge graph:**
+- `memlayer entities` — list extracted entities (concepts, decisions, bugs, patterns, tools)
+- `memlayer entities --query "auth" --type decision` — search/filter entities
+- `memlayer entity <id>` — view entity detail with relationships and mentions
+- `memlayer entity <id> --neighbors` — include graph neighbors
+- `memlayer graph stats` — knowledge graph statistics
+
 Use `memlayer search` when the user references past work, asks about prior
 decisions, or encounters a problem that may have been solved before.
+Use `--expand-graph` when you want to find related context beyond direct matches.
+Use `memlayer entities` to browse what concepts and decisions have been extracted.
 Use keyword-rich queries for best results.
 
 **Default behavior:** Search and session commands only return `user` and
