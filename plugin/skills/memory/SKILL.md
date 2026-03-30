@@ -1,7 +1,7 @@
 ---
 name: memory
 description: Use when the user wants to recall past conversations, remember previous work, look up prior decisions, search conversation history, browse recent sessions, or reference past sessions. Trigger keywords include "remember", "recall", "past conversation", "previous session", "how did we", "why did we", "what was the approach", "look up", "what did we decide", "have we done this before", "earlier we", "last time", "when did we", "do you remember", "recent", "latest", "what was I working on".
-version: 2.0.0
+version: 2.1.0
 ---
 
 # Memory - Cross-Session Recall
