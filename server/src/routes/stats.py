@@ -64,6 +64,29 @@ async def aggregate_stats():
         """
     )
 
+    # Contributors by source machine
+    contributor_rows = await pool.fetch(
+        """
+        SELECT
+            cs.client_machine_id AS machine_id,
+            COUNT(DISTINCT cs.session_id) AS session_count,
+            COUNT(me.id) AS entry_count,
+            MAX(cs.last_seen_at) AS last_active
+        FROM claude_sessions cs
+        LEFT JOIN memory_entries me ON me.session_id = cs.session_id
+        WHERE cs.client_machine_id IS NOT NULL
+          AND cs.client_machine_id != ''
+        GROUP BY cs.client_machine_id
+        ORDER BY entry_count DESC
+        LIMIT 20
+        """
+    )
+
+    # Database size
+    db_size = await pool.fetchval(
+        "SELECT pg_database_size(current_database())"
+    ) or 0
+
     result = {
         "totals": {
             "entries": total_entries,
@@ -80,6 +103,16 @@ async def aggregate_stats():
         "activity": [
             {"day": str(r["day"]), "entries": r["entries"]} for r in activity_rows
         ],
+        "contributors": [
+            {
+                "machine_id": r["machine_id"],
+                "session_count": r["session_count"],
+                "entry_count": r["entry_count"],
+                "last_active": str(r["last_active"]) if r["last_active"] else "",
+            }
+            for r in contributor_rows
+        ],
+        "database_size_bytes": db_size,
     }
 
     _cache = result

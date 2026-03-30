@@ -145,6 +145,18 @@ pub struct StatsResponse {
     pub totals: StatsTotals,
     pub embeddings: StatsEmbeddings,
     pub activity: Vec<DayActivity>,
+    #[serde(default)]
+    pub contributors: Vec<ContributorInfo>,
+    #[serde(default)]
+    pub database_size_bytes: Option<i64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ContributorInfo {
+    pub machine_id: String,
+    pub session_count: i64,
+    pub entry_count: i64,
+    pub last_active: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

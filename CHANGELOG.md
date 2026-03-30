@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.0.0] — 2026-03-30
+
+### Added
+
+- Knowledge graph schema, LLM-based entity extraction pipeline, and multi-stage entity resolution (`db/migrations/011_knowledge_graph.sql`, `server/src/extraction/`) (2581faf)
+- Graph API: entity CRUD, typed relationships, N-hop traversal, graph-augmented search (`server/src/routes/graph.py`, `db/migrations/012_graph_search_function.sql`) (0bccb05)
+- Knowledge graph CLI commands: `memlayer entities`, `memlayer entity`, `memlayer graph stats` (`cli-rs/src/commands/`) (0013238)
+- TUI Graph tab: entity browser with type-colored list, detail view with relationships, aliases, and mentions (0013238)
+- Agent-directed graph tools and memory skill integration for entity/relationship management (65a116d)
+- **TUI Graph tab: entity search/filter bar** with debounced fuzzy search via `/` key
+- **TUI Graph tab: breadcrumb neighbor traversal** — Enter drills into entities, Esc navigates back through the chain
+- **TUI Graph tab: pagination** — n/p keys to page through entities when list exceeds 50
+- **TUI Graph tab: top entities** display in graph overview from stats data
+- **TUI Search tab: graph-augmented search toggle** — on by default with `g` key toggle and visual ON/OFF indicator
+- **TUI Search tab: related entities** shown in result detail pane and graph boost scores in result list
+- **TUI Stats tab: contributors section** — lists source machines with entry counts, session counts, and last active timestamps
+- **TUI Stats tab: database size** metric from PostgreSQL
+- Server stats endpoint: contributor aggregation by `client_machine_id` and `pg_database_size()` query
+
+### Fixed
+
+- Detect pg_trgm extension schema for Supabase compatibility (ac610b4)
+
+### Changed
+
+- Graph tab rewritten with three input modes (filter, entity list, breadcrumb drill-down) and left/right split layout
+- Search requests include `expand_graph` and `graph_weight` parameters when graph mode is enabled
+- Stats response extended with `contributors` and `database_size_bytes` fields (backward compatible via serde defaults) _[manual]_
+
 ## [v1.7.0] — 2026-03-29
 
 ### Added

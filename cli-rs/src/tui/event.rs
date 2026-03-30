@@ -50,4 +50,8 @@ pub enum Action {
     FetchFullEntry(String, i64),
     FetchGraphData,
     FetchEntityDetail(i64),
+    FetchSearchedEntities {
+        query: Option<String>,
+        offset: u32,
+    },
 }

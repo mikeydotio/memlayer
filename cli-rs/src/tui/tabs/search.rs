@@ -23,6 +23,8 @@ pub struct SearchTab {
     /// Debounce: tracks whether we need to fire a search.
     pending_search: bool,
     last_query: String,
+    /// Graph-augmented search toggle (on by default).
+    graph_enabled: bool,
 }
 
 impl SearchTab {
@@ -38,7 +40,24 @@ impl SearchTab {
             input_focused: true,
             pending_search: false,
             last_query: String::new(),
+            graph_enabled: true,
         }
+    }
+
+    fn set_detail(&mut self, r: &SearchResult) {
+        let mut content = r.raw_content.clone();
+        if let Some(ref entities) = r.related_entities {
+            if !entities.is_empty() {
+                content.push_str("\n\n--- Related Entities ---\n");
+                for e in entities {
+                    content.push_str(&format!("  [{}] {}\n", e.entity_type, e.name));
+                }
+            }
+        }
+        self.detail.set(
+            format!("[{}] {}", r.content_type, r.created_at),
+            content,
+        );
     }
 
     /// Called on tick to check if debounced search should fire.
@@ -55,8 +74,8 @@ impl SearchTab {
                 before: None,
                 types: None,
                 truncate: None,
-                expand_graph: None,
-                graph_weight: None,
+                expand_graph: if self.graph_enabled { Some(true) } else { None },
+                graph_weight: if self.graph_enabled { Some(0.5) } else { None },
             }))
         } else {
             self.pending_search = false;
@@ -105,8 +124,16 @@ impl TabComponent for SearchTab {
                             before: None,
                             types: None,
                             truncate: None,
-                            expand_graph: None,
-                            graph_weight: None,
+                            expand_graph: if self.graph_enabled {
+                                Some(true)
+                            } else {
+                                None
+                            },
+                            graph_weight: if self.graph_enabled {
+                                Some(0.5)
+                            } else {
+                                None
+                            },
                         }))
                     } else {
                         None
@@ -130,21 +157,17 @@ impl TabComponent for SearchTab {
                 }
                 KeyCode::Char('j') | KeyCode::Down => {
                     self.nav.next();
-                    if let Some(r) = self.results.get(self.nav.selected) {
-                        self.detail.set(
-                            format!("[{}] {}", r.content_type, r.created_at),
-                            r.raw_content.clone(),
-                        );
+                    let r = self.results.get(self.nav.selected).cloned();
+                    if let Some(r) = r {
+                        self.set_detail(&r);
                     }
                     None
                 }
                 KeyCode::Char('k') | KeyCode::Up => {
                     self.nav.prev();
-                    if let Some(r) = self.results.get(self.nav.selected) {
-                        self.detail.set(
-                            format!("[{}] {}", r.content_type, r.created_at),
-                            r.raw_content.clone(),
-                        );
+                    let r = self.results.get(self.nav.selected).cloned();
+                    if let Some(r) = r {
+                        self.set_detail(&r);
                     }
                     None
                 }
@@ -154,6 +177,15 @@ impl TabComponent for SearchTab {
                 }
                 KeyCode::Char('h') | KeyCode::Left => {
                     self.detail.scroll_up();
+                    None
+                }
+                KeyCode::Char('g') => {
+                    self.graph_enabled = !self.graph_enabled;
+                    // Re-trigger search with new settings if there's an active query
+                    if !self.input.is_empty() {
+                        self.pending_search = true;
+                        self.last_query.clear(); // force re-search
+                    }
                     None
                 }
                 _ => None,
@@ -167,11 +199,9 @@ impl TabComponent for SearchTab {
             self.total = resp.total;
             self.search_ms = resp.search_ms;
             self.nav.set_len(self.results.len());
-            if let Some(r) = self.results.first() {
-                self.detail.set(
-                    format!("[{}] {}", r.content_type, r.created_at),
-                    r.raw_content.clone(),
-                );
+            let first = self.results.first().cloned();
+            if let Some(r) = first {
+                self.set_detail(&r);
             } else {
                 self.detail.clear();
             }
@@ -193,9 +223,19 @@ impl TabComponent for SearchTab {
         } else {
             Style::default().fg(Color::DarkGray)
         };
+        let graph_label = if self.graph_enabled { "ON" } else { "OFF" };
+        let graph_color = if self.graph_enabled {
+            Color::Green
+        } else {
+            Color::DarkGray
+        };
         let input_block = Block::default()
             .borders(Borders::ALL)
-            .title(" Search (/ to focus) ")
+            .title(Line::from(vec![
+                Span::raw(" Search (/ to focus, g=graph "),
+                Span::styled(graph_label, Style::default().fg(graph_color).bold()),
+                Span::raw(") "),
+            ]))
             .border_style(input_style);
         let input_text = Paragraph::new(self.input.as_str()).block(input_block);
         frame.render_widget(input_text, chunks[0]);
@@ -234,18 +274,29 @@ impl TabComponent for SearchTab {
             .iter()
             .enumerate()
             .map(|(i, r)| {
-                let style = if i == self.nav.selected {
+                let selected = i == self.nav.selected;
+                let style = if selected {
                     Style::default().bg(Color::DarkGray).fg(Color::White)
                 } else {
                     Style::default()
                 };
                 let project = r.project_path.as_deref().unwrap_or("?");
-                let preview: String = r.raw_content.lines().next().unwrap_or("").chars().take(50).collect();
-                ListItem::new(format!(
-                    "{:.3} [{}] {} — {}",
-                    r.rrf_score, r.content_type, project, preview
-                ))
-                .style(style)
+                let preview: String =
+                    r.raw_content.lines().next().unwrap_or("").chars().take(50).collect();
+                let mut spans = vec![
+                    Span::styled(format!("{:.3}", r.rrf_score), style),
+                ];
+                if r.graph_boost > 0.0 {
+                    spans.push(Span::styled(
+                        format!(" +{:.2}g", r.graph_boost),
+                        if selected { style } else { Style::default().fg(Color::Magenta) },
+                    ));
+                }
+                spans.push(Span::styled(
+                    format!(" [{}] {} — {}", r.content_type, project, preview),
+                    style,
+                ));
+                ListItem::new(Line::from(spans))
             })
             .collect();
         let list = List::new(items).block(results_block);

@@ -152,6 +152,54 @@ impl TabComponent for StatsTab {
                 }
                 lines.push(Line::from(""));
             }
+
+            // Contributors
+            if !stats.contributors.is_empty() {
+                lines.push(Line::from(Span::styled(
+                    "Contributors:",
+                    Style::default().fg(Color::Yellow).bold(),
+                )));
+                for c in &stats.contributors {
+                    let last = if c.last_active.is_empty() {
+                        "never".to_string()
+                    } else {
+                        c.last_active.chars().take(19).collect()
+                    };
+                    lines.push(Line::from(vec![
+                        Span::styled(
+                            format!("  {:<24} ", c.machine_id),
+                            Style::default().fg(Color::White),
+                        ),
+                        Span::styled(
+                            format!("{:>6} entries  ", c.entry_count),
+                            Style::default().fg(Color::Cyan),
+                        ),
+                        Span::styled(
+                            format!("{:>4} sessions  ", c.session_count),
+                            Style::default().fg(Color::Green),
+                        ),
+                        Span::styled(
+                            format!("last: {last}"),
+                            Style::default().fg(Color::DarkGray),
+                        ),
+                    ]));
+                }
+                lines.push(Line::from(""));
+            }
+
+            // Database size
+            if let Some(size_bytes) = stats.database_size_bytes {
+                let (size_val, unit) = if size_bytes >= 1_073_741_824 {
+                    (size_bytes as f64 / 1_073_741_824.0, "GB")
+                } else {
+                    (size_bytes as f64 / 1_048_576.0, "MB")
+                };
+                lines.push(Line::from(vec![
+                    Span::styled("Database Size: ", Style::default().fg(Color::Cyan).bold()),
+                    Span::raw(format!("{size_val:.1} {unit}")),
+                ]));
+                lines.push(Line::from(""));
+            }
         }
 
         if let Some(ref health) = self.health {

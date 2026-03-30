@@ -180,6 +180,7 @@ impl App {
         match self.active_tab {
             Tab::Search => true, // Search always captures keys when active
             Tab::Live => false,  // Live filter uses / to focus
+            Tab::Graph => self.graph.filter_focused,
             _ => false,
         }
     }
@@ -214,6 +215,9 @@ impl App {
         // Debounced search (fire every other tick = ~500ms)
         if self.tick_count % 2 == 0 {
             if let Some(action) = self.search.check_debounce() {
+                self.dispatch_action(action, tx).await;
+            }
+            if let Some(action) = self.graph.check_debounce() {
                 self.dispatch_action(action, tx).await;
             }
         }
@@ -325,6 +329,17 @@ impl App {
                     let result = client.get_entity(entity_id).await;
                     tx.send(AppEvent::ApiResponse(ApiResponsePayload::GraphEntityDetail(result)))
                         .ok();
+                });
+            }
+            Action::FetchSearchedEntities { query, offset } => {
+                tokio::spawn(async move {
+                    let result = client
+                        .get_entities(query.as_deref(), None, None, "active", 50, offset)
+                        .await;
+                    tx.send(AppEvent::ApiResponse(ApiResponsePayload::GraphEntities(
+                        result,
+                    )))
+                    .ok();
                 });
             }
         }
