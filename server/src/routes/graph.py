@@ -86,6 +86,15 @@ class GraphNeighbors(BaseModel):
     nodes: list[EntityInfo]
     edges: list[dict]
 
+
+class EntityCreate(BaseModel):
+    canonical_name: str
+    entity_type: str
+    description: str | None = None
+    project_path: str | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    source: str = Field(default="agent", description="Origin: 'agent' or 'extraction'")
+
 # Simple cache for graph stats
 _cache: dict = {}
 _cache_ts: float = 0.0
@@ -257,6 +266,46 @@ async def list_entities(
         limit=limit,
         offset=offset,
     )
+
+
+@router.post("/entities")
+async def create_entity(body: EntityCreate):
+    """Create an entity directly (for agent-directed memory)."""
+    pool = get_pool()
+
+    # Check for existing entity with same name, type, and project
+    existing = await pool.fetchrow(
+        """
+        SELECT id FROM entities
+        WHERE lower(canonical_name) = lower($1) AND entity_type = $2
+          AND (project_path = $3 OR (project_path IS NULL AND $3 IS NULL))
+          AND status != 'archived'
+        """,
+        body.canonical_name, body.entity_type, body.project_path,
+    )
+    if existing:
+        # Update existing entity
+        await pool.execute(
+            """
+            UPDATE entities SET mention_count = mention_count + 1,
+                last_seen_at = NOW(), updated_at = NOW(),
+                confidence = GREATEST(confidence, $2)
+            WHERE id = $1
+            """,
+            existing["id"], body.confidence,
+        )
+        return {"created": False, "entity_id": existing["id"], "action": "updated_existing"}
+
+    row = await pool.fetchrow(
+        """
+        INSERT INTO entities (canonical_name, entity_type, description, project_path, confidence)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id
+        """,
+        body.canonical_name, body.entity_type, body.description,
+        body.project_path, body.confidence,
+    )
+    return {"created": True, "entity_id": row["id"]}
 
 
 @router.get("/entities/{entity_id}", response_model=EntityDetail)
