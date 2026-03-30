@@ -16,6 +16,7 @@ from .config import settings
 from .db import init_pool, close_pool
 from .embeddings import init_embedder, embedding_worker
 from .eviction import eviction_worker
+from .extraction import init_extractor, extraction_worker
 from .routes.ingest import router as ingest_router
 from .routes.search import router as search_router
 from .routes.files import router as files_router
@@ -24,6 +25,7 @@ from .routes.migration import router as migration_router
 from .routes.stream import router as stream_router
 from .routes.browse import router as browse_router
 from .routes.stats import router as stats_router
+from .routes.graph import router as graph_router
 
 
 class JsonFormatter(logging.Formatter):
@@ -130,8 +132,10 @@ async def lifespan(app: FastAPI):
     os.makedirs(settings.file_storage_path, exist_ok=True)
 
     init_embedder()
+    init_extractor()
     embed_task = asyncio.create_task(embedding_worker())
     evict_task = asyncio.create_task(eviction_worker())
+    extract_task = asyncio.create_task(extraction_worker())
     logger.info("Memlayer server started")
     yield
 
@@ -146,8 +150,9 @@ async def lifespan(app: FastAPI):
 
     embed_task.cancel()
     evict_task.cancel()
+    extract_task.cancel()
     try:
-        await asyncio.gather(embed_task, evict_task, return_exceptions=True)
+        await asyncio.gather(embed_task, evict_task, extract_task, return_exceptions=True)
     except Exception:
         pass
     await close_pool()
@@ -231,6 +236,7 @@ app.include_router(migration_router, prefix="/api")
 app.include_router(stream_router, prefix="/api")
 app.include_router(browse_router, prefix="/api")
 app.include_router(stats_router, prefix="/api")
+app.include_router(graph_router, prefix="/api")
 
 
 @app.get("/health")

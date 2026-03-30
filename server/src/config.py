@@ -27,6 +27,16 @@ class Settings(BaseSettings):
     index_llm_model: str = ""
     anthropic_api_key: str = ""
 
+    # Knowledge graph extraction settings
+    extraction_mode: str = "off"  # "off" | "auto" | "on"
+    extraction_llm_provider: str = ""  # "openai" | "anthropic" | "ollama"
+    extraction_llm_model: str = ""
+    extraction_batch_size: int = 10  # entries per LLM call
+    extraction_context_window: int = 20  # prior entries for session context
+    extraction_interval_secs: float = 10.0
+    extraction_confidence_threshold: float = 0.5
+    entity_resolution_threshold: float = 0.7
+
     # Migration settings
     migration_key_ttl_secs: int = 3600  # 1 hour initial TTL
     migration_batch_size: int = 200

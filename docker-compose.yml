@@ -46,6 +46,9 @@ services:
       INDEX_LLM_PROVIDER: ${INDEX_LLM_PROVIDER:-}
       INDEX_LLM_MODEL: ${INDEX_LLM_MODEL:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      EXTRACTION_MODE: ${EXTRACTION_MODE:-off}
+      EXTRACTION_LLM_PROVIDER: ${EXTRACTION_LLM_PROVIDER:-}
+      EXTRACTION_LLM_MODEL: ${EXTRACTION_LLM_MODEL:-}
     volumes:
       - response-files:/data/response_files
       - ./db/migrations:/app/migrations:ro

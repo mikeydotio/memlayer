@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from ..db import get_pool
 from ..models import IngestEntry, IngestRequest, IngestResponse
 from ..embeddings import enqueue_ids
+from ..extraction import enqueue_extraction_ids
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -176,9 +177,10 @@ async def ingest(req: IngestRequest):
 
     accepted = len(new_ids)
 
-    # Enqueue for embedding
+    # Enqueue for embedding and extraction
     if new_ids:
         await enqueue_ids(new_ids)
+        await enqueue_extraction_ids(new_ids)
 
     # Broadcast to SSE clients
     if new_ids:
