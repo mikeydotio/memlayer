@@ -227,6 +227,9 @@ class Migrator:
             logger.info(f"Pre-migration backup created: {backup_path} ({size} bytes)")
             return backup_path
 
+        except FileNotFoundError:
+            logger.warning("pg_dump not found — skipping pre-migration backup")
+            return None
         except asyncio.TimeoutError:
             logger.error("pg_dump timed out after 300s")
             raise MigrationError("Pre-migration backup timed out")
