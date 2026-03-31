@@ -21,6 +21,7 @@ RUN groupadd -r app && useradd -r -g app app \
     && mkdir -p /data/response_files /data/backups \
     && chown -R app:app /data /app
 
+ENV UV_CACHE_DIR=/tmp/uv-cache
 USER app
 EXPOSE 8420
 CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8420"]
