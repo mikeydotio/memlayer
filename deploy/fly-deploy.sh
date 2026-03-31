@@ -95,6 +95,44 @@ _set_secrets() {
 
 _set_secrets
 
+# ── Pre-flight: build and smoke-test the cloud image locally ─────
+echo "Running pre-flight smoke test (cloud Dockerfile, non-root user)..."
+PREFLIGHT_PROJECT="memlayer-preflight-$$"
+
+_preflight_cleanup() {
+    docker compose -p "$PREFLIGHT_PROJECT" -f docker-compose.test.yml down -v --remove-orphans 2>/dev/null || true
+}
+trap _preflight_cleanup EXIT
+
+if ! docker compose -p "$PREFLIGHT_PROJECT" -f docker-compose.test.yml up -d --build --wait 2>&1; then
+    echo
+    echo "Error: Pre-flight smoke test failed — the cloud image did not start."
+    echo "  Fix the issue before deploying. Check logs with:"
+    echo "  docker compose -p $PREFLIGHT_PROJECT -f docker-compose.test.yml logs"
+    exit 1
+fi
+
+PREFLIGHT_URL="http://127.0.0.1:8421/health"
+PREFLIGHT_OK=false
+for _i in $(seq 1 10); do
+    if curl -sf --max-time 3 "$PREFLIGHT_URL" >/dev/null 2>&1; then
+        PREFLIGHT_OK=true
+        break
+    fi
+    sleep 2
+done
+
+if ! $PREFLIGHT_OK; then
+    echo
+    echo "Error: Pre-flight health check failed — server did not respond at $PREFLIGHT_URL"
+    echo "  Check logs: docker compose -p $PREFLIGHT_PROJECT -f docker-compose.test.yml logs test-server"
+    exit 1
+fi
+
+echo "Pre-flight passed — cloud image starts and responds to health checks"
+_preflight_cleanup
+trap - EXIT
+
 # ── Deploy ────────────────────────────────────────────────────────
 echo "Deploying to Fly.io..."
 if ! flyctl deploy --app "$APP_NAME" --remote-only; then

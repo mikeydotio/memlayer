@@ -28,8 +28,8 @@ services:
 
   test-server:
     build:
-      context: ./server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: deploy/Dockerfile.cloud
     container_name: memlayer-test-server
     depends_on:
       test-db:
@@ -77,8 +77,8 @@ services:
   # Server configured with Ollama embeddings (for integration tests)
   test-server-ollama:
     build:
-      context: ./server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: deploy/Dockerfile.cloud
     container_name: memlayer-test-server-ollama
     profiles: ["ollama"]
     depends_on:
