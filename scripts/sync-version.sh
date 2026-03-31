@@ -61,11 +61,12 @@ with open('$PLUGIN_JSON', 'w') as f:
     echo "  Updated $PLUGIN_JSON"
 fi
 
-# Skill frontmatter version
-SKILL_MD="$REPO_ROOT/plugin/skills/memory/SKILL.md"
-if [ -f "$SKILL_MD" ]; then
-    sed -i "s/^version: .*/version: $VERSION/" "$SKILL_MD"
-    echo "  Updated $SKILL_MD"
-fi
+# Skill frontmatter versions
+for SKILL_MD in "$REPO_ROOT"/plugin/skills/*/SKILL.md; do
+    if [ -f "$SKILL_MD" ]; then
+        sed -i "s/^version: .*/version: $VERSION/" "$SKILL_MD"
+        echo "  Updated $SKILL_MD"
+    fi
+done
 
 echo "Version sync complete: $VERSION"
