@@ -14,6 +14,6 @@ git add \
     memlayer-common/Cargo.toml \
     server/pyproject.toml \
     plugin/.claude-plugin/plugin.json \
-    plugin/skills/memory/SKILL.md
+    plugin/skills/*/SKILL.md
 
 echo "Version sync staged for commit"
