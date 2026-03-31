@@ -9,8 +9,7 @@ Claude Code Memory Layer — persistent, searchable conversation memory with kno
 - **Database**: PostgreSQL 16 + pgvector + pg_trgm, managed via Docker Compose
 - **CLI** (`cli-rs/`): Rust CLI binary (`memlayer`) for searching, recalling conversations, browsing entities, and interactive TUI dashboard
 - **Shared** (`memlayer-common/`): Shared Rust crate for config, API types, HTTP client, and file cache
-- **Plugin** (`plugin/`): Claude Code plugin with memory skill and read-augmentation hook
-- **Skill** (`skill/memory.md`): Claude skill that teaches when to use the CLI and graph tools
+- **Plugin** (`plugin/`): Claude Code plugin with recall, health, and graph skills plus read-augmentation hook
 - **Knowledge Graph** (`server/src/extraction/`): LLM-based entity extraction, multi-stage entity resolution, and typed relationship tracking (supports, contradicts, supersedes, depends_on, etc.)
 
 ## Development

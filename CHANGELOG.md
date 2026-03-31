@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.2.0] — 2026-03-31
+
+### Changed
+
+- Split monolithic plugin skill into three focused, namespaced skills: `memlayer:recall`, `memlayer:health`, `memlayer:graph` — reduces context token usage by ~55% for the common search/recall case (plugin/skills/)
+- `memlayer:graph` skill uses conservative trigger keywords requiring "memory" or "memlayer" qualifier to avoid false activation on generic "graph" or "entities" mentions
+
+### Fixed
+
+- Gracefully skip backup when pg_dump is not installed (bd8c213)
+- Set `UV_CACHE_DIR` for non-root container user (3cb9bfd)
+
+### Removed
+
+- Obsolete `skill/memory.md` replaced by plugin skills
+
+_[manual]_
+
 ## [v2.1.0] — 2026-03-30
 
 ### Security
