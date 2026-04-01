@@ -1,0 +1,22 @@
+{
+  "name": "memlayer",
+  "owner": {
+    "name": "mikeydotio"
+  },
+  "metadata": {
+    "description": "Cross-session memory plugins for Claude Code",
+    "version": "1.0.0",
+    "pluginRoot": "./plugin"
+  },
+  "plugins": [
+    {
+      "name": "memlayer",
+      "source": "./plugin",
+      "description": "Cross-session memory for Claude Code — search and recall past conversations, decisions, and solutions across all projects",
+      "version": "2.2.0",
+      "author": {
+        "name": "mikeydotio"
+      }
+    }
+  ]
+}

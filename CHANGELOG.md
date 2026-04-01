@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.3.0] — 2026-03-31
+
+### Added
+
+- Claude Code plugin marketplace at repo root (`.claude-plugin/marketplace.json`) — users can now install the memlayer plugin via `/plugin marketplace add mikeydotio/memlayer` + `/plugin install memlayer@memlayer` (36d801c, aec888e)
+- Pre-flight smoke test before Fly.io deploy (aec888e)
+
+### Changed
+
+- Plugin installation is now optional and user-driven via Claude Code marketplace instead of forced by `setup_client.sh` (setup_client.sh)
+- Version sync script and post-bump hook now include `marketplace.json` (scripts/sync-version.sh, .semver/hooks/post-bump/00-sync-version.sh)
+
+### Fixed
+
+- Post-bump hook uses glob for plugin skill paths (4bf2e0e)
+- `sync-version.sh` iterates all plugin skills instead of hardcoded path (a209831)
+
+_[manual]_
+
 ## [v2.2.0] — 2026-03-31
 
 ### Changed

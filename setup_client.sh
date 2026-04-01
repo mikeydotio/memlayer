@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/scripts/lib.sh"
 
-TOTAL_STEPS=8
+TOTAL_STEPS=7
 DAEMON_BIN="$HOME/.local/bin/memlayer-daemon"
 RELEASE_BASE="https://github.com/mikeydotio/memlayer/releases/latest/download"
 
@@ -464,48 +464,6 @@ else
     info "Skipping CLAUDE.md setup"
 fi
 
-# ── Step 8: Claude Code plugin ─────────────────────────────────────
-step 8 $TOTAL_STEPS "Installing Claude Code plugin"
-
-_plugin_status="skipped"
-plugin_src="$SCRIPT_DIR/plugin"
-plugin_cache="$HOME/.claude/plugins/cache/memlayer-local/latest"
-
-if [[ -d "$plugin_src/.claude-plugin" ]]; then
-    mkdir -p "$plugin_cache"
-    if command -v rsync &>/dev/null; then
-        rsync -a "$plugin_src/" "$plugin_cache/"
-    else
-        cp -r "$plugin_src/." "$plugin_cache/"
-    fi
-    chmod +x "$plugin_cache/hooks/memory-read-hook.sh" 2>/dev/null || true
-
-    # Register in installed_plugins.json
-    installed_file="$HOME/.claude/plugins/installed_plugins.json"
-    if [[ -f "$installed_file" ]]; then
-        if ! jq -e '.plugins["memlayer@memlayer-local"]' "$installed_file" &>/dev/null 2>&1; then
-            jq --arg path "$plugin_cache" \
-               --arg now "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
-              '.plugins["memlayer@memlayer-local"] = [{"scope":"user","installPath":$path,"version":"latest","installedAt":$now,"lastUpdated":$now}]' \
-              "$installed_file" > "${installed_file}.tmp" && mv "${installed_file}.tmp" "$installed_file"
-        fi
-    fi
-
-    # Enable in settings.json
-    settings_file="$HOME/.claude/settings.json"
-    if [[ -f "$settings_file" ]]; then
-        if ! jq -e '.enabledPlugins["memlayer@memlayer-local"]' "$settings_file" &>/dev/null 2>&1; then
-            jq '.enabledPlugins["memlayer@memlayer-local"] = true' \
-              "$settings_file" > "${settings_file}.tmp" && mv "${settings_file}.tmp" "$settings_file"
-        fi
-    fi
-
-    success "Claude Code plugin installed"
-    _plugin_status="installed"
-else
-    warn "Plugin source not found at $plugin_src — skipping"
-fi
-
 # ── Summary ─────────────────────────────────────────────────────────
 echo
 
@@ -543,8 +501,7 @@ if [[ ${#_errors[@]} -eq 0 ]]; then
         "Service:   $_service_status" \
         "Server:    $server_url" \
         "CLI:       $_cli_status" \
-        "CLAUDE.md: $_claudemd_status" \
-        "Plugin:    $_plugin_status"
+        "CLAUDE.md: $_claudemd_status"
 else
     print_box \
         "Memlayer Client — Setup Complete (with warnings)" \
@@ -553,8 +510,7 @@ else
         "Service:   $_service_status" \
         "Server:    $server_url" \
         "CLI:       $_cli_status" \
-        "CLAUDE.md: $_claudemd_status" \
-        "Plugin:    $_plugin_status"
+        "CLAUDE.md: $_claudemd_status"
 
     echo
     for _err in "${_errors[@]}"; do
@@ -589,6 +545,13 @@ echo "  Initial sync typically takes 5-15 minutes depending on how much"
 echo "  history you have. Embedding generation runs in the background and"
 echo "  may take a bit longer. Search works immediately via full-text"
 echo "  search; semantic search improves as embeddings complete."
+echo
+info "Claude Code plugin (optional):"
+echo "  To install the memlayer plugin for Claude Code, run these"
+echo "  commands inside a Claude Code session:"
+echo
+echo "    /plugin marketplace add mikeydotio/memlayer"
+echo "    /plugin install memlayer@memlayer"
 echo
 success "Start a new Claude Code session and ask: \"Do you remember what we worked on?\""
 echo

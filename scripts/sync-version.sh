@@ -61,6 +61,23 @@ with open('$PLUGIN_JSON', 'w') as f:
     echo "  Updated $PLUGIN_JSON"
 fi
 
+# Marketplace manifest — sync plugin version in plugins array
+MARKETPLACE_JSON="$REPO_ROOT/.claude-plugin/marketplace.json"
+if [ -f "$MARKETPLACE_JSON" ]; then
+    python3 -c "
+import json
+with open('$MARKETPLACE_JSON') as f:
+    data = json.load(f)
+for p in data.get('plugins', []):
+    if p.get('name') == 'memlayer':
+        p['version'] = '$VERSION'
+with open('$MARKETPLACE_JSON', 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+"
+    echo "  Updated $MARKETPLACE_JSON"
+fi
+
 # Skill frontmatter versions
 for SKILL_MD in "$REPO_ROOT"/plugin/skills/*/SKILL.md; do
     if [ -f "$SKILL_MD" ]; then
