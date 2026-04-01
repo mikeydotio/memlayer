@@ -546,12 +546,16 @@ echo "  history you have. Embedding generation runs in the background and"
 echo "  may take a bit longer. Search works immediately via full-text"
 echo "  search; semantic search improves as embeddings complete."
 echo
-info "Claude Code plugin (optional):"
-echo "  To install the memlayer plugin for Claude Code, run these"
-echo "  commands inside a Claude Code session:"
+info "AI tool plugins (optional):"
+echo "  Install memlayer into your AI coding tools:"
 echo
-echo "    /plugin marketplace add mikeydotio/memlayer"
-echo "    /plugin install memlayer@memlayer"
+echo "    memlayer plugin install claude-code"
+echo "    memlayer plugin install codex"
+echo "    memlayer plugin install gemini"
+echo
+echo "  Manage installations:"
+echo "    memlayer plugin list"
+echo "    memlayer plugin uninstall --all"
 echo
 success "Start a new Claude Code session and ask: \"Do you remember what we worked on?\""
 echo

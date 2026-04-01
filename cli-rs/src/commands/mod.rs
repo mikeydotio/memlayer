@@ -2,6 +2,7 @@ pub mod dashboard;
 pub mod entities;
 pub mod entity;
 pub mod graph;
+pub mod plugin;
 pub mod read_file;
 pub mod recent;
 pub mod rollback;
@@ -33,6 +34,8 @@ pub enum Commands {
     Entity(entity::EntityArgs),
     /// Knowledge graph operations
     Graph(graph::GraphArgs),
+    /// Manage memlayer plugins for AI coding tools
+    Plugin(plugin::PluginArgs),
     /// Check for CLI updates
     Update(update::UpdateArgs),
     /// Rollback to a previously archived CLI version
@@ -51,6 +54,7 @@ impl Commands {
             Commands::Entities(args) => entities::run(args).await,
             Commands::Entity(args) => entity::run(args).await,
             Commands::Graph(args) => graph::run(args).await,
+            Commands::Plugin(args) => plugin::run(args).await,
             Commands::Update(args) => update::run(args).await,
             Commands::Rollback(args) => rollback::run(args).await,
         }

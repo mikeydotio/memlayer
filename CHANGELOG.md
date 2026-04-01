@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.4.0] — 2026-04-01
+
+### Added
+
+- Row-Level Security (RLS) enabled on all 12 database tables via new migration `015_row_level_security.sql` — follows Supabase best practice for defense-in-depth (db/migrations/)
+- Conditional `service_full_access` policies for Supabase's `service_role` (auto-skipped on self-hosted Docker Compose deployments)
+
+### Changed
+
+- Schema version bumped to 14
+
+_[manual]_
+
 ## [v2.3.0] — 2026-03-31
 
 ### Added
