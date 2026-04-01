@@ -8,7 +8,7 @@ description: >-
   "look up", "what did we decide", "have we done this before", "earlier we",
   "last time", "when did we", "do you remember", "recent sessions",
   "what was I working on".
-version: 2.3.0
+version: 2.4.0
 ---
 
 # Recall - Cross-Session Memory Search

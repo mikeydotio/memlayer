@@ -7,7 +7,7 @@ description: >-
   "is memlayer running", "memory status", "check memlayer", "memlayer health",
   "server status", "embedding status", "version", "update memlayer", "upgrade",
   "rollback", "memlayer not working", "connection error", "troubleshoot memory".
-version: 2.3.0
+version: 2.4.0
 ---
 
 # Health - Memlayer Status and Diagnostics

@@ -7,7 +7,7 @@ description: >-
   "memory graph stats", "curate memory graph", "merge memory entities",
   "graph-expanded search". Do NOT trigger on generic uses of "graph",
   "entities", or "relationships" without the "memory" or "memlayer" qualifier.
-version: 2.3.0
+version: 2.4.0
 ---
 
 # Graph - Memory Knowledge Graph
