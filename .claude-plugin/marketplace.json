@@ -12,8 +12,8 @@
     {
       "name": "memlayer",
       "source": "./plugin",
-      "description": "Cross-session memory for Claude Code — search and recall past conversations, decisions, and solutions across all projects",
-      "version": "2.2.0",
+      "description": "Cross-session memory for Claude Code \u2014 search and recall past conversations, decisions, and solutions across all projects",
+      "version": "2.3.0",
       "author": {
         "name": "mikeydotio"
       }
