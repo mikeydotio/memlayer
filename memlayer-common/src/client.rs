@@ -257,6 +257,35 @@ impl MemlayerClient {
             .map_err(|e| format!("Failed to parse session entries: {e}"))
     }
 
+    pub async fn get_recent_entries(
+        &self,
+        machine_id: Option<&str>,
+        limit: u32,
+    ) -> Result<RecentEntriesPage, String> {
+        let mut url = format!("{}/entries/recent?limit={}", self.base_url, limit);
+        if let Some(m) = machine_id {
+            url.push_str(&format!("&machine_id={}", urlencoding::encode(m)));
+        }
+
+        let resp = self
+            .http
+            .get(&url)
+            .headers(self.headers())
+            .send()
+            .await
+            .map_err(|e| format!("Recent entries request failed: {e}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(format!("Recent entries failed: {status} {body}"));
+        }
+
+        resp.json()
+            .await
+            .map_err(|e| format!("Failed to parse recent entries: {e}"))
+    }
+
     // ── Knowledge graph methods ──────────────────────────────────────
 
     pub async fn get_entities(

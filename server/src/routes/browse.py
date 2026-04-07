@@ -109,6 +109,62 @@ async def list_sessions(
     }
 
 
+@router.get("/entries/recent")
+async def recent_entries(
+    machine_id: str | None = Query(None),
+    limit: int = Query(10, ge=1, le=200),
+):
+    """Recent entries across all sessions, optionally filtered by host machine."""
+    pool = get_pool()
+
+    rows = await pool.fetch(
+        """
+        SELECT me.id, me.session_id, me.message_type, me.content_type,
+               LEFT(me.raw_content, 200) AS content_preview,
+               me.tool_name, me.created_at,
+               cs.project_path, cs.slug
+        FROM memory_entries me
+        JOIN claude_sessions cs ON me.session_id = cs.session_id
+        WHERE ($1::varchar IS NULL OR cs.client_machine_id = $1)
+        ORDER BY me.created_at DESC
+        LIMIT $2
+        """,
+        machine_id,
+        limit,
+    )
+
+    # Total count (with same filter)
+    total = await pool.fetchval(
+        """
+        SELECT COUNT(*)
+        FROM memory_entries me
+        JOIN claude_sessions cs ON me.session_id = cs.session_id
+        WHERE ($1::varchar IS NULL OR cs.client_machine_id = $1)
+        """,
+        machine_id,
+    ) or 0
+
+    return {
+        "entries": [
+            {
+                "id": r["id"],
+                "session_id": r["session_id"],
+                "message_type": r["message_type"],
+                "content_type": r["content_type"],
+                "content_preview": r["content_preview"] or "",
+                "tool_name": r["tool_name"],
+                "created_at": r["created_at"].isoformat() if r["created_at"] else "",
+                "project_path": r["project_path"],
+                "slug": r["slug"],
+            }
+            for r in rows
+        ],
+        "total": total,
+        "limit": limit,
+        "machine_id": machine_id,
+    }
+
+
 @router.get("/sessions/{session_id}/entries")
 async def list_session_entries(
     session_id: str,

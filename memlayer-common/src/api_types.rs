@@ -138,6 +138,29 @@ pub struct EntriesPage {
     pub has_more: bool,
 }
 
+// ── Recent entries types ────────────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RecentEntry {
+    pub id: i64,
+    pub session_id: String,
+    pub message_type: String,
+    pub content_type: String,
+    pub content_preview: String,
+    pub tool_name: Option<String>,
+    pub created_at: String,
+    pub project_path: Option<String>,
+    pub slug: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RecentEntriesPage {
+    pub entries: Vec<RecentEntry>,
+    pub total: i64,
+    pub limit: u32,
+    pub machine_id: Option<String>,
+}
+
 // ── Stats types (dashboard) ─────────────────────────────────────────
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

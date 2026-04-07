@@ -8,6 +8,7 @@ pub mod recent;
 pub mod rollback;
 pub mod search;
 pub mod session;
+pub mod sessions;
 pub mod status;
 pub mod update;
 
@@ -19,8 +20,13 @@ pub enum Commands {
     Search(search::SearchArgs),
     /// Retrieve full conversation history for a session
     Session(session::SessionArgs),
-    /// List recent sessions without a search query
+    /// Show recent conversation history from this host
     Recent(recent::RecentArgs),
+    /// Alias for `recent`
+    #[command(name = "history")]
+    History(recent::RecentArgs),
+    /// List recent sessions
+    Sessions(sessions::SessionsArgs),
     /// Read a line range from a large response file
     #[command(name = "read-file")]
     ReadFile(read_file::ReadFileArgs),
@@ -47,7 +53,8 @@ impl Commands {
         match self {
             Commands::Search(args) => search::run(args).await,
             Commands::Session(args) => session::run(args).await,
-            Commands::Recent(args) => recent::run(args).await,
+            Commands::Recent(args) | Commands::History(args) => recent::run(args).await,
+            Commands::Sessions(args) => sessions::run(args).await,
             Commands::ReadFile(args) => read_file::run(args).await,
             Commands::Status(args) => status::run(args).await,
             Commands::Dashboard => dashboard::run().await,

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.5.0] - 2026-04-07
+
+### Maintenance
+- sync version 2.4.0 across all components (859a623)
+
+_[manual]_
+
 ## [v2.4.0] — 2026-04-01
 
 ### Added
