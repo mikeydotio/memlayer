@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.5.1] - 2026-04-13
+
+### Maintenance
+- track tool config (.storyhook, .semver, .planning) (8c9eaed)
+- sync version 2.5.0 across all components (efd3bd2)
+
+_[manual]_
+
 ## [v2.5.0] - 2026-04-07
 
 ### Maintenance

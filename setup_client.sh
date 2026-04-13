@@ -400,24 +400,87 @@ step 6 $TOTAL_STEPS "Installing CLI binary"
 CLI_BIN="$HOME/.local/bin/memlayer"
 _cli_status="skipped"
 
-if command -v cargo &>/dev/null && [[ -f "$SCRIPT_DIR/cli-rs/Cargo.toml" ]]; then
-    info "Building Rust CLI..."
-    (cd "$SCRIPT_DIR" && cargo build --release -p memlayer-cli)
-    mkdir -p "$HOME/.local/bin"
-    cp "$SCRIPT_DIR/target/release/memlayer" "$CLI_BIN"
-    chmod +x "$CLI_BIN"
+mkdir -p "$HOME/.local/bin"
 
-    # Remove old MCP registration if present
-    if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q memlayer; then
-        info "Removing old MCP registration..."
-        claude mcp remove memlayer --scope user 2>/dev/null || true
+if [[ -f "$CLI_BIN" ]]; then
+    current_cli_version=$("$CLI_BIN" --version 2>/dev/null || echo "unknown")
+    info "Existing CLI found: $current_cli_version"
+    if ! confirm "Update?" "y"; then
+        success "Keeping existing CLI"
+        _cli_status="installed"
+        _skip_cli=true
+    fi
+fi
+
+if [[ "${_skip_cli:-}" != "true" ]]; then
+    echo
+    echo "  How would you like to install the CLI?"
+    echo "    1) Download pre-built binary (recommended)"
+    echo "    2) Build from source (requires Rust)"
+
+    if [[ -t 0 ]]; then
+        read -r -p "  Choice [1]: " cli_install_choice </dev/tty
+    else
+        cli_install_choice=""
+    fi
+    cli_install_choice="${cli_install_choice:-1}"
+
+    if [[ "$cli_install_choice" == "2" ]]; then
+        # Build from source
+        if ! command -v cargo &>/dev/null; then
+            error "Rust/Cargo not found. Install from https://rustup.rs/"
+            exit 1
+        fi
+
+        info "Building CLI from source..."
+        (cd "$SCRIPT_DIR" && cargo build --release -p memlayer-cli)
+        cp "$SCRIPT_DIR/target/release/memlayer" "$CLI_BIN"
+        chmod +x "$CLI_BIN"
+        success "CLI built and installed to $CLI_BIN"
+        _cli_status="installed"
+    else
+        # Download pre-built binary
+        os=$(detect_os)
+        arch=$(detect_arch)
+        cli_tarball="memlayer-cli-${os}-${arch}.tar.gz"
+        cli_url="${RELEASE_BASE}/${cli_tarball}"
+
+        info "Downloading $cli_tarball..."
+        if curl -fSL --max-time 60 -o "/tmp/$cli_tarball" "$cli_url" 2>/dev/null; then
+            tar -xzf "/tmp/$cli_tarball" -C "$HOME/.local/bin/"
+            chmod +x "$CLI_BIN"
+            rm -f "/tmp/$cli_tarball"
+            success "CLI installed to $CLI_BIN"
+            _cli_status="installed"
+        else
+            warn "Download failed (binary may not be available for $os/$arch)"
+            echo
+            if command -v cargo &>/dev/null; then
+                if confirm "Build from source instead?" "y"; then
+                    info "Building CLI from source..."
+                    (cd "$SCRIPT_DIR" && cargo build --release -p memlayer-cli)
+                    cp "$SCRIPT_DIR/target/release/memlayer" "$CLI_BIN"
+                    chmod +x "$CLI_BIN"
+                    success "CLI built and installed to $CLI_BIN"
+                    _cli_status="installed"
+                else
+                    warn "CLI will not be available"
+                fi
+            else
+                warn "No pre-built binary available and Rust not installed."
+                info "Install Rust (https://rustup.rs/) and re-run, or"
+                echo "  check releases at https://github.com/mikeydotio/memlayer/releases"
+            fi
+        fi
     fi
 
-    success "CLI installed to $CLI_BIN"
-    _cli_status="installed"
-else
-    warn "Rust/Cargo not found — CLI will not be available"
-    info "Install Rust (https://rustup.rs/) and re-run"
+    # Remove old MCP registration if present
+    if [[ "$_cli_status" == "installed" ]]; then
+        if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q memlayer; then
+            info "Removing old MCP registration..."
+            claude mcp remove memlayer --scope user 2>/dev/null || true
+        fi
+    fi
 fi
 
 # ── Step 7: CLAUDE.md ──────────────────────────────────────────────
