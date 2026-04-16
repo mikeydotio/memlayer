@@ -62,7 +62,7 @@ jobs:
       - name: Package binary
         run: |
           mkdir -p dist
-          cp daemon/target/${{ matrix.target }}/release/memlayer-daemon dist/
+          cp target/${{ matrix.target }}/release/memlayer-daemon dist/
           tar -czf ${{ matrix.artifact }}.tar.gz -C dist memlayer-daemon
           sha256sum ${{ matrix.artifact }}.tar.gz > ${{ matrix.artifact }}.tar.gz.sha256
 
@@ -111,7 +111,7 @@ jobs:
       - name: Package binary
         run: |
           mkdir -p dist
-          cp cli-rs/target/${{ matrix.target }}/release/memlayer dist/
+          cp target/${{ matrix.target }}/release/memlayer dist/
           tar -czf ${{ matrix.artifact }}.tar.gz -C dist memlayer
           sha256sum ${{ matrix.artifact }}.tar.gz > ${{ matrix.artifact }}.tar.gz.sha256
 
